@@ -11,9 +11,8 @@
 ![Free Tier Available](https://img.shields.io/badge/Free_Tier-Available-success?logo=cloudflare)
 ![Perfect for Small Business](https://img.shields.io/badge/Perfect_for-Small_Business-blue)
 
-![GitHub stars](https://img.shields.io/github/stars/idhamsy/Link-Shortener-Tracker-CF?style=social)
-![GitHub forks](https://img.shields.io/github/forks/idhamsy/Link-Shortener-Tracker-CF?style=social)
-![GitHub issues](https://img.shields.io/github/issues/idhamsy/Link-Shortener-Tracker-CF)
+![GitHub stars](https://img.shields.io/github/stars/idhamsy/openshortlink?style=social)
+![GitHub forks](https://img.shields.io/github/forks/idhamsy/openshortlink?style=social)
 
 </div>
 
