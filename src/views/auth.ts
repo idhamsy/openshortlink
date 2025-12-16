@@ -309,8 +309,8 @@ export const setupHtml = (csrfToken: string, nonce: string) => html`<!DOCTYPE ht
         errorDiv.style.display = 'block';
         return;
       }
-      if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
-        errorDiv.textContent = 'Password must contain at least one special character (!@#$%^&*()_+-=[]{};\\':"\\|,.<>/? etc.)';
+      if (!/[!@#$%^&*()_+\\-=\\[\\]{};\\':"\\\\|,.<>\\/?]/.test(password)) {
+        errorDiv.textContent = 'Password must contain at least one special character (!@#$%^&*()_+-=[]{};\\':"\\\\|,.<>/? etc.)';
         errorDiv.style.display = 'block';
         return;
       }
