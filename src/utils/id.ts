@@ -13,11 +13,21 @@ export function generateId(prefix = ''): string {
 
 export function generateSlug(length = 8): string {
   const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  // Use cryptographically secure random bytes instead of Math.random()
-  const randomBytes = crypto.getRandomValues(new Uint8Array(length));
+  const charsLength = chars.length; // 62
+  // Calculate the largest multiple of charsLength that fits in 256
+  // This ensures unbiased distribution via rejection sampling
+  const maxValid = 256 - (256 % charsLength); // 256 - 8 = 248
+  
   let result = '';
-  for (let i = 0; i < length; i++) {
-    result += chars.charAt(randomBytes[i] % chars.length);
+  while (result.length < length) {
+    const randomBytes = crypto.getRandomValues(new Uint8Array(length - result.length));
+    for (const byte of randomBytes) {
+      if (byte < maxValid) {
+        result += chars.charAt(byte % charsLength);
+        if (result.length >= length) break;
+      }
+      // Reject bytes >= 248 (they would cause bias)
+    }
   }
   return result;
 }
