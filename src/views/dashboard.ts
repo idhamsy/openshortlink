@@ -765,16 +765,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             <div style="margin-bottom: 2rem;">
                <h2>About <a href="https://openshort.link" target="_blank" style="text-decoration: none; color: inherit;">OpenShort.link</a></h2>
                <p style="margin-top: 0.5rem; line-height: 1.6;"><a href="https://openshort.link" target="_blank" style="text-decoration: none; color: var(--primary-color); font-weight: 500;">OpenShort.link</a> is an all-in-one, open-source link management platform built on Cloudflare Workers, offering high-performance redirects, comprehensive analytics, and multi-tenant capabilities.</p>
-               <div style="margin-top: 1rem; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
-                 <a href="https://github.com/idhamsy/openshortlink" target="_blank" class="btn btn-secondary" style="display: flex; align-items: center; gap: 0.5rem;">
-                    <svg height="20" width="20" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg>
-                    GitHub Repository
-                 </a>
-                 <a href="https://github.com/idhamsy/openshortlink" target="_blank" class="btn btn-secondary" style="display: flex; align-items: center; gap: 0.5rem;">
-                    <svg height="20" width="20" viewBox="0 0 16 16" fill="#e3b341"><path d="M8 .25a.75.75 0 01.673.418l1.882 3.815 4.21.612a.75.75 0 01.416 1.279l-3.046 2.97.719 4.192a.75.75 0 01-1.088.791L8 12.347l-3.766 1.98a.75.75 0 01-1.088-.79l.719-4.192-3.046-2.97a.75.75 0 01.416-1.28l4.21-.612L7.327.668A.75.75 0 018 .25z"></path></svg>
-                    Star on GitHub
-                 </a>
-               </div>
+
             </div>
             <div style="margin-bottom: 2rem;">
                <h2>Resources</h2>
@@ -782,8 +773,26 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
                  <li style="margin-bottom: 0.75rem;"><a href="https://openshort.link/docs" target="_blank" style="text-decoration: none; color: var(--primary-color); display: flex; align-items: center; gap: 0.5rem; font-size: 1.05rem;">📚 Documentation</a></li>
                  <li style="margin-bottom: 0.75rem;"><a href="https://openshort.link/roadmap" target="_blank" style="text-decoration: none; color: var(--primary-color); display: flex; align-items: center; gap: 0.5rem; font-size: 1.05rem;">🗺️ Roadmap</a></li>
                  <li style="margin-bottom: 0.75rem;"><a href="https://github.com/idhamsy/openshortlink/issues" target="_blank" style="text-decoration: none; color: var(--primary-color); display: flex; align-items: center; gap: 0.5rem; font-size: 1.05rem;">🐛 Report a bug</a></li>
-                  <li style="margin-bottom: 0.75rem;"><a href="https://openshort.link/support-us" target="_blank" style="text-decoration: none; color: var(--primary-color); display: flex; align-items: center; gap: 0.5rem; font-size: 1.05rem;">💝 Support Us</a></li>
                </ul>
+            </div>
+
+            <div style="margin-bottom: 2rem; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);">
+               <div style="display: flex; align-items: center; gap: 0.75rem;">
+                 <span style="font-size: 1.5rem;">🚀</span>
+                 <h3 style="margin: 0; font-size: 1.25rem;">Support OpenShort.link</h3>
+               </div>
+               <p style="margin: 0; line-height: 1.6; color: var(--text-color); font-size: 1rem;">
+                 Your support keeps OpenShort.link alive! This project is open-source and free to use. If you find it valuable, please consider giving us a star on GitHub or making a small donation. Your support directly helps us maintain infrastructure and develop new features for the community.
+               </p>
+               <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 0.5rem;">
+                 <a href="https://github.com/idhamsy/openshortlink" target="_blank" class="btn btn-secondary" style="display: flex; align-items: center; gap: 0.5rem; border: 1px solid var(--border-color);">
+                    <svg height="20" width="20" viewBox="0 0 16 16" fill="#e3b341"><path d="M8 .25a.75.75 0 01.673.418l1.882 3.815 4.21.612a.75.75 0 01.416 1.279l-3.046 2.97.719 4.192a.75.75 0 01-1.088.791L8 12.347l-3.766 1.98a.75.75 0 01-1.088-.79l.719-4.192-3.046-2.97a.75.75 0 01.416-1.28l4.21-.612L7.327.668A.75.75 0 018 .25z"></path></svg>
+                    Star on GitHub
+                 </a>
+                 <a href="https://openshort.link/support-us" target="_blank" class="btn btn-primary" style="display: flex; align-items: center; gap: 0.5rem; background-color: #e91e63; border-color: #e91e63; color: white;">
+                    💝 Donate
+                 </a>
+               </div>
             </div>
 
             <div style="margin-bottom: 2rem;">

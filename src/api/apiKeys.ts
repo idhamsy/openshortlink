@@ -115,11 +115,14 @@ apiKeysRouter.get('/:id', authMiddleware, requireRole(['admin', 'owner']), async
 });
 
 // Create API key (admin only)
+// Note: Rate limiting intentionally removed for simplicity (internal/self-hosted use)
+// Production deployments should use Cloudflare's infrastructure-level rate limiting or add:
+// createRateLimit({ window: 60, max: 10, key: (c) => `apikey:create:${c.req.header('CF-Connecting-IP')}` })
 apiKeysRouter.post('/', authMiddleware, requireRole(['admin', 'owner']), validateJson(createApiKeySchema), async (c) => {
   const validated = c.req.valid('json');
 
   // Get user_id from validated body or use current admin user
-  const userId = (validated as any).user_id || (c.get('user') as { id: string }).id;
+  const userId = validated.user_id || (c.get('user') as { id: string }).id;
 
   // Validate domains if provided
   if (validated.domain_ids && validated.domain_ids.length > 0) {

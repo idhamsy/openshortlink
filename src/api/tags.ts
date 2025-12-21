@@ -76,6 +76,9 @@ tagsRouter.get('/:id', authMiddleware, async (c) => {
 });
 
 // Create tag
+// Note: Rate limiting intentionally removed for simplicity (internal/self-hosted use)
+// Production deployments should use Cloudflare's infrastructure-level rate limiting or add:
+// createRateLimit({ window: 60, max: 30, key: (c) => `tag:create:${c.req.header('CF-Connecting-IP')}` })
 tagsRouter.post('/', authMiddleware, requirePermission('manage_tags'), validateJson(createTagSchema), async (c) => {
   const validated = c.req.valid('json');
 

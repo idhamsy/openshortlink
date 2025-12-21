@@ -46,6 +46,7 @@ export const createApiKeySchema = z.object({
   ip_whitelist: z.array(ipAddressSchema).optional(),
   allow_all_ips: z.boolean().optional().default(false),
   expires_at: lenientExpiresAtSchema,
+  user_id: z.string().optional(),
 });
 
 export const updateApiKeySchema = z.object({

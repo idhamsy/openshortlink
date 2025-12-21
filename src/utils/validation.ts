@@ -116,39 +116,3 @@ export function validateNumericBoundary(value: number, min: number, max: number,
   }
   return value;
 }
-
-// User management validation schemas
-// Note: Admin creating users can use simpler passwords for testing/service accounts
-// Owner setup (register endpoint) still requires strong password
-export const createUserSchema = z.object({
-  username: z.string().min(3).max(50).regex(/^[a-zA-Z0-9_-]+$/, {
-    message: 'Username can only contain letters, numbers, underscore, and hyphen'
-  }),
-  email: z.string().email().optional(),
-  password: z.string()
-    .min(8, { message: 'Password must be at least 8 characters long' })
-    .max(128, { message: 'Password must be less than 128 characters' }),
-  role: z.enum(['admin', 'user', 'analyst', 'owner']).default('user'),
-  global_access: z.boolean().optional(),
-  domain_ids: z.array(z.string()).optional(), // For specific domain access
-});
-
-export const updateUserSchema = z.object({
-  username: z.string().min(3).max(50).regex(/^[a-zA-Z0-9_-]+$/).optional(),
-  email: z.string().email().optional(),
-  role: z.enum(['admin', 'user', 'analyst', 'owner']).optional(),
-  global_access: z.boolean().optional(),
-  domain_ids: z.array(z.string()).optional(), // For specific domain access
-  preferences: z.record(z.string(), z.unknown()).optional(),
-});
-
-export const setUserDomainsSchema = z.object({
-  global_access: z.boolean(),
-  domain_ids: z.array(z.string()).optional(), // Required if global_access is false
-}).refine(
-  (data) => data.global_access || (data.domain_ids && data.domain_ids.length > 0),
-  {
-    message: 'domain_ids is required when global_access is false',
-  }
-);
-

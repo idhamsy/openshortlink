@@ -14,7 +14,7 @@ import { hashPassword } from '../utils/crypto';
 import { authMiddleware } from '../middleware/auth';
 import { validateJson } from '../middleware/validate';
 import { requireRole } from '../middleware/authorization';
-import { createUserSchema, updateUserSchema, setUserDomainsSchema } from '../utils/validation';
+import { createUserSchema, updateUserSchema, setUserDomainsSchema } from '../schemas';
 import { setUserDomains, getUserDomains, getAllUserDomains } from '../db/userDomains';
 import { getDomainById } from '../db/domains';
 import { logAuditEvent, getIpAddress, getUserAgent } from '../services/audit';

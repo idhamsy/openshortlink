@@ -48,6 +48,9 @@ domainsRouter.get('/:id', authMiddleware, requireDomainAccessFromParam('view'), 
 });
 
 // Create domain (admin only)
+// Note: Rate limiting intentionally removed for simplicity (internal/self-hosted use)
+// Production deployments should use Cloudflare's infrastructure-level rate limiting or add:
+// createRateLimit({ window: 60, max: 10, key: (c) => `domain:create:${c.req.header('CF-Connecting-IP')}` })
 domainsRouter.post('/', authMiddleware, requireRole(['admin', 'owner']), validateJson(createDomainSchema), async (c) => {
   try {
     const validated = c.req.valid('json');

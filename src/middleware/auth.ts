@@ -12,22 +12,32 @@ import { getApiKeyByHash, listApiKeys, updateLastUsed } from '../db/apiKeys';
 // Domain cache TTL (5 minutes) - matches session.ts
 const DOMAIN_CACHE_TTL = 5 * 60;
 
-// Failed auth rate limit: 10 failures per minute per IP
-const FAILED_AUTH_LIMIT = 10;
-const FAILED_AUTH_WINDOW = 60; // seconds
+// Failed auth rate limit: configurable via environment variables
+// Default: 5 failures per 2 hours (7200 seconds) for production security
+// Can be overridden in wrangler.toml for development/testing (e.g., 60 seconds)
+const getFailedAuthLimit = (env: Env): number => {
+  return parseInt((env as any).FAILED_AUTH_LIMIT || '5');
+};
+
+const getFailedAuthWindow = (env: Env): number => {
+  return parseInt((env as any).FAILED_AUTH_WINDOW || '7200'); // Default 2 hours
+};
 
 // Helper: Check if IP is rate limited due to too many auth failures
 async function checkAuthFailureRateLimit(env: Env, ip: string): Promise<boolean> {
-  const key = `auth_fail:${ip}:${Math.floor(Date.now() / 1000 / FAILED_AUTH_WINDOW)}`;
+  const window = getFailedAuthWindow(env);
+  const limit = getFailedAuthLimit(env);
+  const key = `auth_fail:${ip}:${Math.floor(Date.now() / 1000 / window)}`;
   const count = parseInt(await env.CACHE.get(key) || '0');
-  return count >= FAILED_AUTH_LIMIT;
+  return count >= limit;
 }
 
 // Helper: Increment auth failure counter for IP
 async function trackAuthFailure(env: Env, ip: string): Promise<void> {
-  const key = `auth_fail:${ip}:${Math.floor(Date.now() / 1000 / FAILED_AUTH_WINDOW)}`;
+  const window = getFailedAuthWindow(env);
+  const key = `auth_fail:${ip}:${Math.floor(Date.now() / 1000 / window)}`;
   const count = parseInt(await env.CACHE.get(key) || '0');
-  await env.CACHE.put(key, String(count + 1), { expirationTtl: FAILED_AUTH_WINDOW });
+  await env.CACHE.put(key, String(count + 1), { expirationTtl: window });
 }
 
 // Helper: Get client IP from request

@@ -76,6 +76,9 @@ categoriesRouter.get('/:id', authMiddleware, async (c) => {
 });
 
 // Create category
+// Note: Rate limiting intentionally removed for simplicity (internal/self-hosted use)
+// Production deployments should use Cloudflare's infrastructure-level rate limiting or add:
+// createRateLimit({ window: 60, max: 20, key: (c) => `category:create:${c.req.header('CF-Connecting-IP')}` })
 categoriesRouter.post('/', authMiddleware, requirePermission('manage_categories'), validateJson(createCategorySchema), async (c) => {
   const validated = c.req.valid('json');
 

@@ -285,9 +285,8 @@ authRouter.post('/logout', optionalAuth, async (c) => {
 
 // Refresh access token - schema imported from ../schemas
 
-authRouter.post('/refresh', async (c) => {
-  const body = await c.req.json().catch(() => ({}));
-  const validated = refreshTokenSchema.parse(body);
+authRouter.post('/refresh', validateJson(refreshTokenSchema), async (c) => {
+  const validated = c.req.valid('json');
 
   // Get refresh token from body or cookie
   let refreshToken = validated.refresh_token;
@@ -492,15 +491,14 @@ authRouter.post('/mfa/setup', authMiddleware, async (c) => {
 
 // MFA Verify Setup - schema imported from ../schemas
 
-authRouter.post('/mfa/verify-setup', authMiddleware, async (c) => {
+authRouter.post('/mfa/verify-setup', authMiddleware, validateJson(mfaVerifySetupSchema), async (c) => {
   const user = c.get('user') as { id: string; role: string };
 
   if (user.role !== 'owner' && user.role !== 'admin') {
     throw new HTTPException(403, { message: 'Only owner and admin roles can enable MFA' });
   }
 
-  const body = await c.req.json();
-  const validated = mfaVerifySetupSchema.parse(body);
+  const validated = c.req.valid('json');
 
   // Get user with MFA secret
   const fullUser = await getUserById(c.env, user.id);
@@ -565,9 +563,8 @@ authRouter.post('/mfa/disable', authMiddleware, async (c) => {
 
 // MFA Verify (for login) - schema imported from ../schemas
 
-authRouter.post('/mfa/verify', async (c) => {
-  const body = await c.req.json();
-  const validated = mfaVerifySchema.parse(body);
+authRouter.post('/mfa/verify', validateJson(mfaVerifySchema), async (c) => {
+  const validated = c.req.valid('json');
 
   if (!validated.code && !validated.backup_code) {
     throw new HTTPException(400, { message: 'Either code or backup_code is required' });
@@ -680,10 +677,9 @@ authRouter.post('/mfa/verify', async (c) => {
 
 // Change password - schema imported from ../schemas
 
-authRouter.post('/change-password', authMiddleware, async (c) => {
+authRouter.post('/change-password', authMiddleware, validateJson(changePasswordSchema), async (c) => {
   const user = c.get('user') as { id: string };
-  const body = await c.req.json();
-  const validated = changePasswordSchema.parse(body);
+  const validated = c.req.valid('json');
 
   // Get user with password hash
   const fullUser = await getUserById(c.env, user.id);
@@ -779,21 +775,13 @@ const createTokenSchema = z.object({
   expires_in: z.number().min(60).max(3600).optional(), // 60 seconds to 1 hour (KV minimum is 60)
 });
 
-authRouter.post('/token', authMiddleware, async (c) => {
+authRouter.post('/token', authMiddleware, validateJson(createTokenSchema), async (c) => {
   try {
     const user = c.get('user') as { id: string; username?: string; email?: string; role: string };
     
-    const body = await c.req.json().catch(() => ({}));
-    const validated = createTokenSchema.safeParse(body);
+    const validated = c.req.valid('json');
     
-    if (!validated.success) {
-      console.error('Token creation validation failed:', validated.error.issues);
-      throw new HTTPException(400, { 
-        message: 'Invalid request body: ' + validated.error.issues.map(e => e.message).join(', ')
-      });
-    }
-    
-    const expiresIn = validated.data.expires_in || 3600; // Default 1 hour
+    const expiresIn = validated.expires_in || 3600; // Default 1 hour
     
     // Validate expiration range (Cloudflare KV requires minimum 60 seconds)
     if (expiresIn < 60 || expiresIn > 3600) {

@@ -403,6 +403,9 @@ linksRouter.get('/:id', authOrApiKeyMiddleware, async (c) => {
 });
 
 // Create link
+// Note: Rate limiting intentionally removed for simplicity (internal/self-hosted use)
+// Production deployments should use Cloudflare's infrastructure-level rate limiting or add:
+// createRateLimit({ window: 60, max: 50, key: (c) => `link:create:${c.req.header('CF-Connecting-IP')}` })
 linksRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links'), validateJson(createLinkSchema), async (c) => {
   const ip = c.req.header('cf-connecting-ip') || 'unknown';
 
