@@ -16,11 +16,11 @@ const DOMAIN_CACHE_TTL = 5 * 60;
 // Default: 5 failures per 2 hours (7200 seconds) for production security
 // Can be overridden in wrangler.toml for development/testing (e.g., 60 seconds)
 const getFailedAuthLimit = (env: Env): number => {
-  return parseInt((env as any).FAILED_AUTH_LIMIT || '5');
+  return parseInt(env.FAILED_AUTH_LIMIT || '5');
 };
 
 const getFailedAuthWindow = (env: Env): number => {
-  return parseInt((env as any).FAILED_AUTH_WINDOW || '7200'); // Default 2 hours
+  return parseInt(env.FAILED_AUTH_WINDOW || '7200'); // Default 2 hours
 };
 
 // Helper: Check if IP is rate limited due to too many auth failures

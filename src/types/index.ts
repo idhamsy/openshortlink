@@ -224,6 +224,9 @@ export interface Env {
   RATE_LIMIT_API_KEY?: string; // Default: 100 requests/minute
   RATE_LIMIT_USER?: string; // Default: 100 requests/minute
   RATE_LIMIT_IP?: string; // Default: 20 requests/minute
+  // Auth rate limiting (optional - for brute-force protection)
+  FAILED_AUTH_LIMIT?: string; // Default: 5 attempts
+  FAILED_AUTH_WINDOW?: string; // Default: 7200 seconds (2 hours)
 }
 
 // Extended user type for context (includes cached domain access)

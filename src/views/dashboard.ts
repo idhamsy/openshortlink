@@ -663,14 +663,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
                 <h3>500 Error</h3>
                 <p id="status-count-500">-</p>
               </div>
-              <div class="stat-card status-filter-card" style="cursor: pointer;" data-status="timeout">
-                <h3>Timeout</h3>
-                <p id="status-count-timeout">-</p>
-              </div>
-              <div class="stat-card status-filter-card" style="cursor: pointer;" data-status="unknown">
-                <h3>Unknown</h3>
-                <p id="status-count-unknown">-</p>
-              </div>
+
             </div>
           </div>
           <div style="background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
@@ -684,8 +677,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
                   <option value="302">302 Redirect</option>
                   <option value="404">404 Not Found</option>
                   <option value="500">500 Error</option>
-                  <option value="timeout">Timeout</option>
-                  <option value="unknown">Unknown</option>
+
                 </select>
                 <select id="status-domain-filter" style="padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
                   <option value="">All Domains</option>
@@ -923,23 +915,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       </form>
     </div>
   </div>
-  <div id="import-progress-modal" class="modal" style="z-index: 2000;">
-    <div class="modal-content" style="max-width: 400px;">
-      <h2>Importing Links</h2>
-      <div style="margin: 1.5rem 0;">
-        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-          <span id="progress-text">Preparing import...</span>
-          <span id="progress-percent">0%</span>
-        </div>
-        <div style="width: 100%; height: 24px; background: #e0e0e0; border-radius: 12px; overflow: hidden;">
-          <div id="progress-bar" style="height: 100%; background: #007bff; width: 0%; transition: width 0.3s ease; border-radius: 12px;"></div>
-        </div>
-      </div>
-      <div id="progress-complete" style="display: none; text-align: center; margin-top: 1rem;">
-        <button id="progress-ok-btn" class="btn btn-primary" style="min-width: 100px;">OK</button>
-      </div>
-    </div>
-  </div>
+
   <div id="api-key-modal" class="modal">
     <div class="modal-content" style="max-width: 600px;">
       <span class="close">&times;</span>
@@ -10426,7 +10402,9 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       doc += JSON.stringify({
         success: false,
         error: {
-          message: 'Human-readable error message'
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid request data',
+          details: [{ path: 'field_name', message: 'Error details' }]
         }
       }, null, 2) + '\\n';
       doc += codeBlock + '\\n\\n';

@@ -8,16 +8,11 @@ import { z } from 'zod';
 // ============================================================================
 
 /**
- * IP address validation regex (IPv4 and IPv6)
- * IPv4: standard dotted decimal format (e.g., 192.168.1.1)
- * IPv6: supports full, compressed, and mixed formats
+ * IP address validation using Zod 4.x built-in validators
+ * z.ipv4() for IPv4 addresses, z.ipv6() for IPv6 addresses
+ * Combined with z.union() to accept either format
  */
-const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|(?:(?:[0-9a-fA-F]{1,4}:)*::(?:[0-9a-fA-F]{1,4}:)*[0-9a-fA-F]{1,4})|(?:::(?:[0-9a-fA-F]{1,4}:){0,6}[0-9a-fA-F]{1,4})|(?:(?:[0-9a-fA-F]{1,4}:){1,7}::)|(?:(?:[0-9a-fA-F]{1,4}:){6}(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))|(?:(?:[0-9a-fA-F]{1,4}:)*::(?:[0-9a-fA-F]{1,4}:)*(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))|(?:::1|::)$/;
-
-/**
- * IP address validation schema
- */
-const ipAddressSchema = z.string().regex(ipRegex, 'Invalid IP address format');
+const ipAddressSchema = z.union([z.ipv4(), z.ipv6()]);
 
 // ============================================================================
 // API Key Schemas
