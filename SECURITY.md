@@ -102,7 +102,7 @@ Limit: 100 requests per 10 minutes
 Action: Block for 1 hour
 ```
 
-See the [README.md](README.md#-security) for detailed configuration instructions.
+See the [README.md](README.md#security) for detailed configuration instructions.
 
 ## Security Update Policy
 

@@ -1453,7 +1453,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         updateToggleButton(collapsed);
       });
     }
-    function showPage(pageName) {
+    async function showPage(pageName) {
       // DEBUG: console.log('showPage called with:', pageName);
       const pages = document.querySelectorAll('.page');
       // DEBUG: console.log('Found', pages.length, 'pages');
@@ -1654,9 +1654,10 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         const state = paginationState.links;
         const offset = (state.page - 1) * state.perPage;
         
-        const domainId = document.getElementById('domain-selector')?.value;
+        const domainSelector = document.getElementById('domain-selector');
+        const domainId = domainSelector?.value || '';
         const searchTerm = document.getElementById('search-input')?.value || '';
-        const statusFilter = document.getElementById('status-filter')?.value || '';
+        // Note: status-filter belongs to Link Monitor page, not Dashboard - do not read it here
         const tagFilter = document.getElementById('tag-filter')?.value || '';
         const categoryFilter = document.getElementById('category-filter')?.value || '';
         
@@ -1664,9 +1665,11 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           limit: state.perPage.toString(),
           offset: offset.toString()
         });
-        if (domainId) params.append('domain_id', domainId);
+        // Only add domain_id if it's a valid non-empty string
+        if (domainId && domainId.trim() !== '' && domainId !== 'undefined') {
+          params.append('domain_id', domainId);
+        }
         if (searchTerm) params.append('search', searchTerm);
-        if (statusFilter) params.append('status', statusFilter);
         if (tagFilter) params.append('tag_id', tagFilter);
         if (categoryFilter) params.append('category_id', categoryFilter);
         
@@ -1754,9 +1757,22 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         console.error('Failed to load links:', error);
         const tbody = document.getElementById('links-tbody');
         if (tbody) {
-          tbody.innerHTML = '<tr><td colspan="7">Error loading links. Check authentication.</td></tr>';
+          let errorMessage = 'Error loading links.';
+          
+          // Provide more specific error messages
+          if (error.message?.includes('401') || error.message?.includes('Unauthorized')) {
+            errorMessage = 'Authentication error. Please log in again.';
+          } else if (error.message?.includes('403') || error.message?.includes('Forbidden')) {
+            errorMessage = 'Access denied. Check domain permissions.';
+          } else if (error.message?.includes('404')) {
+            errorMessage = 'Domain not found. Please select a valid domain.';
+          } else if (error.message?.includes('network') || error.message?.includes('fetch')) {
+            errorMessage = 'Network error. Please check your connection.';
+          }
+          
+          tbody.innerHTML = '<tr><td colspan="7">' + errorMessage + '</td></tr>';
         }
-        showToast('Failed to load links', 'error');
+        showToast('Failed to load links: ' + (error.message || 'Unknown error'), 'error');
       } finally {
         // Loading state is cleared when content is replaced
       }
@@ -10660,7 +10676,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             required: param.required,
             description: param.description,
             schema: {
-              type: param.type === 'number' ? 'integer' : 'string'
+              type: param.type === 'number' ? 'integer' : param.type === 'boolean' ? 'boolean' : 'string'
             }
           });
         });
@@ -10673,7 +10689,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             required: param.required || false,
             description: param.description,
             schema: {
-              type: param.type === 'number' ? 'integer' : 'string'
+              type: param.type === 'number' ? 'integer' : param.type === 'boolean' ? 'boolean' : 'string'
             }
           });
         });
@@ -10932,8 +10948,10 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         document.getElementById('status-count-200').textContent = summary['200'] || 0;
         document.getElementById('status-count-404').textContent = summary['404'] || 0;
         document.getElementById('status-count-500').textContent = summary['500'] || 0;
-        document.getElementById('status-count-timeout').textContent = summary['timeout'] || 0;
-        document.getElementById('status-count-unknown').textContent = summary['unknown'] || 0;
+        const timeoutEl = document.getElementById('status-count-timeout');
+        if (timeoutEl) timeoutEl.textContent = summary['timeout'] || 0;
+        const unknownEl = document.getElementById('status-count-unknown');
+        if (unknownEl) unknownEl.textContent = summary['unknown'] || 0;
       } catch (error) {
         console.error('Failed to load status summary:', error);
       }

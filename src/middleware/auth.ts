@@ -41,14 +41,20 @@ async function trackAuthFailure(env: Env, ip: string): Promise<void> {
 }
 
 // Helper: Get client IP from request
-function getClientIp(c: Context<{ Bindings: Env; Variables: Variables }>): string {
+function getClientIp(c: Context<{ Bindings: Env; Variables: Variables }>): string | null {
   return c.req.header('cf-connecting-ip') || 
-         c.req.header('x-forwarded-for')?.split(',')[0] || 
-         'unknown';
+         c.req.header('x-forwarded-for')?.split(',')[0] ||
+         c.req.raw.headers.get('CF-Connecting-IP') ||
+         null;
 }
 
 export async function authMiddleware(c: Context<{ Bindings: Env; Variables: Variables }>, next: Next) {
   const ip = getClientIp(c);
+  
+  // Reject requests without identifiable IP
+  if (!ip) {
+    throw new HTTPException(403, { message: 'Unable to identify client' });
+  }
   
   // Check if IP is blocked due to too many failed auth attempts
   if (await checkAuthFailureRateLimit(c.env, ip)) {
@@ -208,6 +214,11 @@ export async function optionalAuth(c: Context<{ Bindings: Env; Variables: Variab
 export async function apiKeyMiddleware(c: Context<{ Bindings: Env; Variables: Variables }>, next: Next) {
   const ip = getClientIp(c);
   
+  // Reject requests without identifiable IP
+  if (!ip) {
+    throw new HTTPException(403, { message: 'Unable to identify client' });
+  }
+  
   // Check if IP is blocked due to too many failed auth attempts
   if (await checkAuthFailureRateLimit(c.env, ip)) {
     throw new HTTPException(429, { message: 'Too many failed authentication attempts. Please try again later.' });
@@ -267,11 +278,8 @@ export async function apiKeyMiddleware(c: Context<{ Bindings: Env; Variables: Va
   }
   
   // Check IP whitelist
-  // Extract client IP from Cloudflare header
-  const clientIp = c.req.header('cf-connecting-ip') || 
-                   c.req.raw.headers.get('cf-connecting-ip') ||
-                   c.req.raw.headers.get('CF-Connecting-IP') ||
-                   null;
+  // Use existing IP from helper (already validated at top of function)
+  const clientIp = ip;
   
   // If IP whitelist is required, check it
   if (verifiedKey.allow_all_ips !== 1 && verifiedKey.ip_whitelist) {

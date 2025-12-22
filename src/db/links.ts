@@ -202,7 +202,7 @@ export async function listLinks(
     params.push(options.domainId);
   }
   if (options.status) {
-    query += ' AND status = ?';
+    query += ' AND l.status = ?';
     params.push(options.status);
   }
   if (options.search) {
