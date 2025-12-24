@@ -220,13 +220,44 @@ export interface Env {
   ANALYTICS_ENGINE_THRESHOLD_DAYS?: string; // Days threshold for using Analytics Engine (default: "89")
   ANALYTICS_AGGREGATION_THRESHOLD_DAYS?: string; // Days threshold for aggregation (default: "90")
   ANALYTICS_AGGREGATION_ENABLED?: string; // "true" or "false" (default: check settings table)
+  // Rate limiting (optional - defaults will be used if not set)
+  RATE_LIMIT_API_KEY?: string; // Default: 100 requests/minute
+  RATE_LIMIT_USER?: string; // Default: 100 requests/minute
+  RATE_LIMIT_IP?: string; // Default: 20 requests/minute
+  // Auth rate limiting (optional - for brute-force protection)
+  FAILED_AUTH_LIMIT?: string; // Default: 5 attempts
+  FAILED_AUTH_WINDOW?: string; // Default: 7200 seconds (2 hours)
+}
+
+// Extended user type for context (includes cached domain access)
+export interface ContextUser {
+  id: string;
+  username?: string;
+  email?: string;
+  role: string;
+  global_access?: boolean;
+  accessible_domain_ids?: string[];
+}
+
+// Session type reference (defined in services/session.ts)
+export interface SessionData {
+  user_id: string;
+  username: string;
+  email?: string;
+  role: string;
+  created_at: number;
+  accessible_domain_ids?: string[];
+  global_access?: boolean;
+  permission_version?: number;
+  cached_at?: number;
 }
 
 export interface Variables {
-  user?: User;
+  user?: ContextUser;
   apiKey?: ApiKeyContext;
   csrfToken?: string;
   nonce?: string;
+  session?: SessionData;
 }
 
 export interface ApiResponse<T = unknown> {

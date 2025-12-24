@@ -36,6 +36,12 @@ LOG_LEVEL = "info"
 CACHE_TTL = "604800"
 MAX_LINKS_PER_DOMAIN = "10000"
 
+ Rate limiting configuration
+# For development/testing: use shorter windows (60 seconds)
+# For production: use longer windows (7200 seconds = 2 hours) for security
+FAILED_AUTH_LIMIT = "5"      # Max failed authentication attempts before blocking
+FAILED_AUTH_WINDOW = "7200"    # Time window in seconds (60 = 1 minute for dev/test)
+
 
 # Security & API Secrets:
 # For one-click deploy: Values are prompted from .dev.vars.example

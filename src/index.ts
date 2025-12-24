@@ -39,16 +39,26 @@ app.use('*', cors({
 // Redirects are GET-only and don't return HTML, so these are unnecessary
 app.use('*', async (c, next) => {
   const path = new URL(c.req.url).pathname;
+  
   // Apply CSRF/security for dashboard and API routes only
   // Everything else is a redirect route
   const isAdminRoute = path.startsWith('/dashboard') || path.startsWith('/api');
   
-  if (isAdminRoute) {
+  // Exclude auth endpoints from CSRF (they create sessions, can't have CSRF token before login)
+  const isAuthEndpoint = path === '/api/auth/login' || 
+                         path === '/api/auth/register' ||
+                         path === '/api/auth/refresh' ||
+                         path === '/api/auth/mfa/verify';
+  
+  if (isAdminRoute && !isAuthEndpoint) {
     // Apply CSRF and security headers for dashboard/API routes
     // Chain them properly: CSRF first, then security headers
     await csrfProtection(c, async () => {
       await securityHeaders(c, next);
     });
+  } else if (isAdminRoute && isAuthEndpoint) {
+    // Auth endpoints: security headers only, no CSRF
+    await securityHeaders(c, next);
   } else {
     // Skip for redirect routes - just continue
     await next();

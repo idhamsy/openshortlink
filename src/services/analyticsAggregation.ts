@@ -57,10 +57,10 @@ export async function aggregateAnalyticsForDate(
     }
 
     // Get link IDs to aggregate (if not provided, aggregate all links)
-    const allLinkIds = linkIds || [];
+    const filters = linkIds && linkIds.length > 0 ? { linkIds } : {};
 
     // Query raw events from Analytics Engine SQL API for this date
-    const rawEvents = await getRawEventsFromEngine(env, allLinkIds, date, date);
+    const rawEvents = await getRawEventsFromEngine(env, filters, date, date);
 
     if (rawEvents.length === 0) {
       // DEBUG: console.log(`[AGGREGATION] No events found for date ${date}`);

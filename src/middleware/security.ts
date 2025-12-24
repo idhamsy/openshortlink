@@ -1,6 +1,10 @@
-import { createMiddleware } from 'hono/factory';
+// Security Headers Middleware
+// Phase 2: Using createMiddleware with proper typing
 
-export const securityHeaders = createMiddleware(async (c, next) => {
+import { createMiddleware } from 'hono/factory';
+import type { Env, Variables } from '../types';
+
+export const securityHeaders = createMiddleware<{ Bindings: Env; Variables: Variables }>(async (c, next) => {
     // Generate a random nonce for this request
     const nonce = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))));
     c.set('nonce', nonce);

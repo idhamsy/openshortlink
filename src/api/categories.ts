@@ -2,27 +2,18 @@
 
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
-import { z } from 'zod';
-import type { Env, User } from '../types';
+import type { Env, User, Variables } from '../types';
 import { listCategories, countCategories, getCategoryById, createCategory, updateCategory, deleteCategory } from '../db/categories';
 import { getDomainById } from '../db/domains';
 import { authMiddleware } from '../middleware/auth';
-import { createRateLimit } from '../middleware/rateLimit';
+import { validateJson } from '../middleware/validate';
 import { requirePermission } from '../middleware/authorization';
 import { filterCategoriesByAccess, canAccessDomain } from '../utils/permissions';
+import { createCategorySchema, updateCategorySchema } from '../schemas';
 
-const categoriesRouter = new Hono<{ Bindings: Env }>();
+const categoriesRouter = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-const createCategorySchema = z.object({
-  name: z.string().min(1).max(50),
-  domain_id: z.string().optional(),
-  icon: z.string().max(50).optional(),
-});
-
-const updateCategorySchema = z.object({
-  name: z.string().min(1).max(50).optional(),
-  icon: z.string().max(50).optional(),
-});
+// Schemas imported from ../schemas
 
 // List categories
 categoriesRouter.get('/', authMiddleware, async (c) => {
@@ -85,13 +76,11 @@ categoriesRouter.get('/:id', authMiddleware, async (c) => {
 });
 
 // Create category
-categoriesRouter.post('/', authMiddleware, requirePermission('manage_categories'), createRateLimit({
-  window: 60,
-  max: 50,
-  key: 'category:create',
-}), async (c) => {
-  const body = await c.req.json();
-  const validated = createCategorySchema.parse(body);
+// Note: Rate limiting intentionally removed for simplicity (internal/self-hosted use)
+// Production deployments should use Cloudflare's infrastructure-level rate limiting or add:
+// createRateLimit({ window: 60, max: 20, key: (c) => `category:create:${c.req.header('CF-Connecting-IP')}` })
+categoriesRouter.post('/', authMiddleware, requirePermission('manage_categories'), validateJson(createCategorySchema), async (c) => {
+  const validated = c.req.valid('json');
 
   // Validate domain exists if domain_id is provided
   if (validated.domain_id) {
@@ -120,28 +109,40 @@ categoriesRouter.post('/', authMiddleware, requirePermission('manage_categories'
 });
 
 // Update category
-categoriesRouter.put('/:id', authMiddleware, requirePermission('manage_categories'), async (c) => {
-  const id = c.req.param('id');
-  const body = await c.req.json();
-  const validated = updateCategorySchema.parse(body);
+categoriesRouter.put('/:id', authMiddleware, requirePermission('manage_categories'), validateJson(updateCategorySchema), async (c) => {
+  try {
+    const id = c.req.param('id');
+    const validated = c.req.valid('json');
 
-  const existingCategory = await getCategoryById(c.env, id);
-  if (!existingCategory) {
-    throw new HTTPException(404, { message: 'Category not found' });
-  }
-
-  // Check domain access if category has a domain
-  if (existingCategory.domain_id) {
-    const user = c.get('user') as User;
-    const hasAccess = await canAccessDomain(c.env, user, existingCategory.domain_id);
-    if (!hasAccess) {
-      throw new HTTPException(403, { message: 'Access denied. You do not have access to this domain.' });
+    const existingCategory = await getCategoryById(c.env, id);
+    if (!existingCategory) {
+      throw new HTTPException(404, { message: 'Category not found' });
     }
+
+    // Check domain access if category has a domain
+    if (existingCategory.domain_id) {
+      const user = c.get('user') as User;
+      const hasAccess = await canAccessDomain(c.env, user, existingCategory.domain_id);
+      if (!hasAccess) {
+        throw new HTTPException(403, { message: 'Access denied. You do not have access to this domain.' });
+      }
+    }
+
+    const category = await updateCategory(c.env, id, validated);
+
+    return c.json({ success: true, data: category });
+  } catch (error) {
+    if (error instanceof HTTPException) {
+      throw error;
+    }
+    // Handle UNIQUE constraint violation
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    if (errorMsg.includes('UNIQUE constraint failed')) {
+      throw new HTTPException(409, { message: 'A category with this name already exists in this domain' });
+    }
+    console.error('[CATEGORY UPDATE ERROR]', error);
+    throw new HTTPException(500, { message: 'Failed to update category' });
   }
-
-  const category = await updateCategory(c.env, id, validated);
-
-  return c.json({ success: true, data: category });
 });
 
 // Delete category

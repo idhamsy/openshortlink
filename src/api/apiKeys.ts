@@ -2,7 +2,6 @@
 
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
-import { z } from 'zod';
 import type { Env, Variables } from '../types';
 import {
   createApiKey,
@@ -14,33 +13,14 @@ import {
   getAllApiKeyDomains,
 } from '../db/apiKeys';
 import { authMiddleware } from '../middleware/auth';
+import { validateJson } from '../middleware/validate';
 import { requireRole } from '../middleware/authorization';
 import { getDomainById, listDomains } from '../db/domains';
+import { createApiKeySchema, updateApiKeySchema } from '../schemas';
 
 const apiKeysRouter = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-// IP address validation regex (IPv4 and IPv6)
-// IPv4: standard dotted decimal format (e.g., 192.168.1.1)
-// IPv6: supports full, compressed, and mixed formats
-// Examples: 2001:0db8:85a3:0000:0000:8a2e:0370:7334, 2001:db8::1, ::1, ::ffff:192.0.2.1
-const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|(?:(?:[0-9a-fA-F]{1,4}:)*::(?:[0-9a-fA-F]{1,4}:)*[0-9a-fA-F]{1,4})|(?:::(?:[0-9a-fA-F]{1,4}:){0,6}[0-9a-fA-F]{1,4})|(?:(?:[0-9a-fA-F]{1,4}:){1,7}::)|(?:(?:[0-9a-fA-F]{1,4}:){6}(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))|(?:(?:[0-9a-fA-F]{1,4}:)*::(?:[0-9a-fA-F]{1,4}:)*(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))|(?:::1|::)$/;
-
-// Validation schemas
-const createApiKeySchema = z.object({
-  name: z.string().min(1).max(255),
-  domain_ids: z.array(z.string()).optional(),
-  ip_whitelist: z.array(z.string().regex(ipRegex, 'Invalid IP address format')).optional(),
-  allow_all_ips: z.boolean().optional().default(false),
-  expires_at: z.number().nullable().optional(),
-});
-
-const updateApiKeySchema = z.object({
-  name: z.string().min(1).max(255).optional(),
-  domain_ids: z.array(z.string()).optional(),
-  ip_whitelist: z.array(z.string().regex(ipRegex, 'Invalid IP address format')).optional(),
-  allow_all_ips: z.boolean().optional(),
-  expires_at: z.number().nullable().optional(),
-});
+// Schemas imported from ../schemas
 
 // List API keys (admin only)
 apiKeysRouter.get('/', authMiddleware, requireRole(['admin', 'owner']), async (c) => {
@@ -135,12 +115,14 @@ apiKeysRouter.get('/:id', authMiddleware, requireRole(['admin', 'owner']), async
 });
 
 // Create API key (admin only)
-apiKeysRouter.post('/', authMiddleware, requireRole(['admin', 'owner']), async (c) => {
-  const body = await c.req.json();
-  const validated = createApiKeySchema.parse(body);
+// Note: Rate limiting intentionally removed for simplicity (internal/self-hosted use)
+// Production deployments should use Cloudflare's infrastructure-level rate limiting or add:
+// createRateLimit({ window: 60, max: 10, key: (c) => `apikey:create:${c.req.header('CF-Connecting-IP')}` })
+apiKeysRouter.post('/', authMiddleware, requireRole(['admin', 'owner']), validateJson(createApiKeySchema), async (c) => {
+  const validated = c.req.valid('json');
 
-  // Get user_id from body or use current admin user
-  const userId = body.user_id || (c.get('user') as { id: string }).id;
+  // Get user_id from validated body or use current admin user
+  const userId = validated.user_id || (c.get('user') as { id: string }).id;
 
   // Validate domains if provided
   if (validated.domain_ids && validated.domain_ids.length > 0) {
@@ -197,10 +179,9 @@ apiKeysRouter.post('/', authMiddleware, requireRole(['admin', 'owner']), async (
 });
 
 // Update API key (admin only)
-apiKeysRouter.put('/:id', authMiddleware, requireRole(['admin', 'owner']), async (c) => {
+apiKeysRouter.put('/:id', authMiddleware, requireRole(['admin', 'owner']), validateJson(updateApiKeySchema), async (c) => {
   const id = c.req.param('id');
-  const body = await c.req.json();
-  const validated = updateApiKeySchema.parse(body);
+  const validated = c.req.valid('json');
 
   const existingKey = await getApiKeyById(c.env, id);
   if (!existingKey) {

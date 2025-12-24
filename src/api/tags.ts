@@ -2,27 +2,18 @@
 
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
-import { z } from 'zod';
-import type { Env, User } from '../types';
+import type { Env, User, Variables } from '../types';
 import { listTags, countTags, getTagById, createTag, updateTag, deleteTag } from '../db/tags';
 import { getDomainById } from '../db/domains';
 import { authMiddleware } from '../middleware/auth';
-import { createRateLimit } from '../middleware/rateLimit';
+import { validateJson } from '../middleware/validate';
 import { requirePermission } from '../middleware/authorization';
 import { filterTagsByAccess, canAccessDomain } from '../utils/permissions';
+import { createTagSchema, updateTagSchema } from '../schemas';
 
-const tagsRouter = new Hono<{ Bindings: Env }>();
+const tagsRouter = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-const createTagSchema = z.object({
-  name: z.string().min(1).max(50),
-  domain_id: z.string().optional(),
-  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
-});
-
-const updateTagSchema = z.object({
-  name: z.string().min(1).max(50).optional(),
-  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
-});
+// Schemas imported from ../schemas
 
 // List tags
 tagsRouter.get('/', authMiddleware, async (c) => {
@@ -85,13 +76,11 @@ tagsRouter.get('/:id', authMiddleware, async (c) => {
 });
 
 // Create tag
-tagsRouter.post('/', authMiddleware, requirePermission('manage_tags'), createRateLimit({
-  window: 60,
-  max: 50,
-  key: 'tag:create',
-}), async (c) => {
-  const body = await c.req.json();
-  const validated = createTagSchema.parse(body);
+// Note: Rate limiting intentionally removed for simplicity (internal/self-hosted use)
+// Production deployments should use Cloudflare's infrastructure-level rate limiting or add:
+// createRateLimit({ window: 60, max: 30, key: (c) => `tag:create:${c.req.header('CF-Connecting-IP')}` })
+tagsRouter.post('/', authMiddleware, requirePermission('manage_tags'), validateJson(createTagSchema), async (c) => {
+  const validated = c.req.valid('json');
 
   // Validate domain exists if domain_id is provided
   if (validated.domain_id) {
@@ -120,28 +109,40 @@ tagsRouter.post('/', authMiddleware, requirePermission('manage_tags'), createRat
 });
 
 // Update tag
-tagsRouter.put('/:id', authMiddleware, requirePermission('manage_tags'), async (c) => {
-  const id = c.req.param('id');
-  const body = await c.req.json();
-  const validated = updateTagSchema.parse(body);
+tagsRouter.put('/:id', authMiddleware, requirePermission('manage_tags'), validateJson(updateTagSchema), async (c) => {
+  try {
+    const id = c.req.param('id');
+    const validated = c.req.valid('json');
 
-  const existingTag = await getTagById(c.env, id);
-  if (!existingTag) {
-    throw new HTTPException(404, { message: 'Tag not found' });
-  }
-
-  // Check domain access if tag has a domain
-  if (existingTag.domain_id) {
-    const user = c.get('user') as User;
-    const hasAccess = await canAccessDomain(c.env, user, existingTag.domain_id);
-    if (!hasAccess) {
-      throw new HTTPException(403, { message: 'Access denied. You do not have access to this domain.' });
+    const existingTag = await getTagById(c.env, id);
+    if (!existingTag) {
+      throw new HTTPException(404, { message: 'Tag not found' });
     }
+
+    // Check domain access if tag has a domain
+    if (existingTag.domain_id) {
+      const user = c.get('user') as User;
+      const hasAccess = await canAccessDomain(c.env, user, existingTag.domain_id);
+      if (!hasAccess) {
+        throw new HTTPException(403, { message: 'Access denied. You do not have access to this domain.' });
+      }
+    }
+
+    const tag = await updateTag(c.env, id, validated);
+
+    return c.json({ success: true, data: tag });
+  } catch (error) {
+    if (error instanceof HTTPException) {
+      throw error;
+    }
+    // Handle UNIQUE constraint violation
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    if (errorMsg.includes('UNIQUE constraint failed')) {
+      throw new HTTPException(409, { message: 'A tag with this name already exists in this domain' });
+    }
+    console.error('[TAG UPDATE ERROR]', error);
+    throw new HTTPException(500, { message: 'Failed to update tag' });
   }
-
-  const tag = await updateTag(c.env, id, validated);
-
-  return c.json({ success: true, data: tag });
 });
 
 // Delete tag

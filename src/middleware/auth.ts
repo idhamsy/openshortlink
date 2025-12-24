@@ -2,7 +2,7 @@
 
 import type { Context, Next } from 'hono';
 import { HTTPException } from 'hono/http-exception';
-import type { Env, ApiKeyContext } from '../types';
+import type { Env, ApiKeyContext, Variables } from '../types';
 import { getSessionTokenFromRequest, getSession, type Session } from '../services/session';
 import { getUserById } from '../db/users';
 import { getUserDomainIds } from '../db/userDomains';
@@ -12,11 +12,109 @@ import { getApiKeyByHash, listApiKeys, updateLastUsed } from '../db/apiKeys';
 // Domain cache TTL (5 minutes) - matches session.ts
 const DOMAIN_CACHE_TTL = 5 * 60;
 
-export async function authMiddleware(c: Context<{ Bindings: Env }>, next: Next) {
+// Failed auth rate limit: configurable via environment variables
+// Default: 5 failures per 2 hours (7200 seconds) for production security
+// Can be overridden in wrangler.toml for development/testing (e.g., 60 seconds)
+const getFailedAuthLimit = (env: Env): number => {
+  const parsed = parseInt(env.FAILED_AUTH_LIMIT || '5');
+  return isNaN(parsed) ? 5 : parsed;
+};
+
+const getFailedAuthWindow = (env: Env): number => {
+  const parsed = parseInt(env.FAILED_AUTH_WINDOW || '7200');
+  return isNaN(parsed) ? 7200 : parsed; // Default 2 hours
+};
+
+// Rate limit data structure for fixed-window rate limiting
+interface RateLimitData {
+  firstFailure: number;  // Unix timestamp (seconds) of first failure in window
+  count: number;         // Number of failures in current window
+}
+
+// Helper: Check if IP is rate limited due to too many auth failures
+// Uses token bucket algorithm to prevent boundary attacks
+async function checkAuthFailureRateLimit(env: Env, ip: string): Promise<boolean> {
+  const window = getFailedAuthWindow(env);
+  const limit = getFailedAuthLimit(env);
+  const key = `auth_fail:${ip}`;
+  const data = await env.CACHE.get(key);
+  
+  if (!data) return false;
+  
+  try {
+    const parsed: RateLimitData = JSON.parse(data);
+    const now = Math.floor(Date.now() / 1000);
+    
+    // If window has expired, not rate limited
+    if (now - parsed.firstFailure > window) {
+      return false;
+    }
+    
+    // Check if count exceeds limit
+    return parsed.count >= limit;
+  } catch {
+    return false;
+  }
+}
+
+// Helper: Increment auth failure counter for IP
+// Uses token bucket algorithm - tracks first failure timestamp
+async function trackAuthFailure(env: Env, ip: string): Promise<void> {
+  const window = getFailedAuthWindow(env);
+  const key = `auth_fail:${ip}`;
+  const existing = await env.CACHE.get(key);
+  const now = Math.floor(Date.now() / 1000);
+  
+  if (existing) {
+    try {
+      const data: RateLimitData = JSON.parse(existing);
+      
+      // If still within same window, increment count
+      if (now - data.firstFailure < window) {
+        await env.CACHE.put(key, JSON.stringify({
+          firstFailure: data.firstFailure,
+          count: data.count + 1
+        }), { expirationTtl: window });
+        return;
+      }
+    } catch {
+      // Invalid data, start fresh
+    }
+  }
+  
+  // Start new window
+  await env.CACHE.put(key, JSON.stringify({
+    firstFailure: now,
+    count: 1
+  }), { expirationTtl: window });
+}
+
+// Helper: Get client IP from request
+function getClientIp(c: Context<{ Bindings: Env; Variables: Variables }>): string | null {
+  return c.req.header('cf-connecting-ip') || 
+         c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ||
+         null;
+}
+
+export async function authMiddleware(c: Context<{ Bindings: Env; Variables: Variables }>, next: Next) {
+  const ip = getClientIp(c);
+  
+  // Reject requests without identifiable IP
+  if (!ip) {
+    throw new HTTPException(403, { message: 'Unable to identify client' });
+  }
+  
+  // Check if IP is blocked due to too many failed auth attempts
+  if (await checkAuthFailureRateLimit(c.env, ip)) {
+    throw new HTTPException(429, { message: 'Too many failed authentication attempts. Please try again later.' });
+  }
+
   // Get session token from request
   const token = getSessionTokenFromRequest(c.req.raw);
   
   if (!token) {
+    // Don't track missing tokens as failures - legitimate users visit protected pages
+    // before logging in (new visitors, expired sessions, cleared cookies)
     throw new HTTPException(401, { message: 'Authentication required' });
   }
 
@@ -24,6 +122,8 @@ export async function authMiddleware(c: Context<{ Bindings: Env }>, next: Next) 
   const session = await getSession(c.env, token);
   
   if (!session) {
+    // #3 FIX: Don't track expired sessions as failures
+    // Expired sessions are natural, not brute-force attempts
     throw new HTTPException(401, { message: 'Invalid or expired session' });
   }
 
@@ -31,6 +131,7 @@ export async function authMiddleware(c: Context<{ Bindings: Env }>, next: Next) 
   const user = await getUserById(c.env, session.user_id);
   
   if (!user) {
+    await trackAuthFailure(c.env, ip);
     throw new HTTPException(401, { message: 'User not found' });
   }
 
@@ -52,7 +153,7 @@ export async function authMiddleware(c: Context<{ Bindings: Env }>, next: Next) 
 
     if (cacheValid) {
       // Use cached data (FAST PATH - no DB query)
-      accessibleDomainIds = session.accessible_domain_ids;
+      accessibleDomainIds = session.accessible_domain_ids ?? [];
     } else {
       // Cache is stale - refresh from database
       accessibleDomainIds = await getUserDomainIds(c.env, user.id);
@@ -91,7 +192,7 @@ export async function authMiddleware(c: Context<{ Bindings: Env }>, next: Next) 
   await next();
 }
 
-export async function optionalAuth(c: Context<{ Bindings: Env }>, next: Next) {
+export async function optionalAuth(c: Context<{ Bindings: Env; Variables: Variables }>, next: Next) {
   // Optional authentication - doesn't fail if no auth
   const token = getSessionTokenFromRequest(c.req.raw);
   
@@ -118,7 +219,7 @@ export async function optionalAuth(c: Context<{ Bindings: Env }>, next: Next) {
 
           if (cacheValid) {
             // Use cached data (FAST PATH - no DB query)
-            accessibleDomainIds = session.accessible_domain_ids;
+            accessibleDomainIds = session.accessible_domain_ids ?? [];
           } else {
             // Cache is stale - refresh from database
             accessibleDomainIds = await getUserDomainIds(c.env, user.id);
@@ -160,11 +261,24 @@ export async function optionalAuth(c: Context<{ Bindings: Env }>, next: Next) {
 }
 
 // API key authentication middleware
-export async function apiKeyMiddleware(c: Context<{ Bindings: Env }>, next: Next) {
+export async function apiKeyMiddleware(c: Context<{ Bindings: Env; Variables: Variables }>, next: Next) {
+  const ip = getClientIp(c);
+  
+  // Reject requests without identifiable IP
+  if (!ip) {
+    throw new HTTPException(403, { message: 'Unable to identify client' });
+  }
+  
+  // Check if IP is blocked due to too many failed auth attempts
+  if (await checkAuthFailureRateLimit(c.env, ip)) {
+    throw new HTTPException(429, { message: 'Too many failed authentication attempts. Please try again later.' });
+  }
+
   // Check for API key in Authorization header
   const authHeader = c.req.header('Authorization');
   
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    await trackAuthFailure(c.env, ip);
     throw new HTTPException(401, { message: 'API key required' });
   }
   
@@ -172,6 +286,7 @@ export async function apiKeyMiddleware(c: Context<{ Bindings: Env }>, next: Next
   
   // Extract prefix (first 16 chars: "sk_live_ab12cd34")
   if (providedKey.length < 16) {
+    await trackAuthFailure(c.env, ip);
     throw new HTTPException(401, { message: 'Invalid API key format' });
   }
   
@@ -183,6 +298,7 @@ export async function apiKeyMiddleware(c: Context<{ Bindings: Env }>, next: Next
   ).bind(keyPrefix).all<{ id: string; key_hash: string; user_id: string; allow_all_ips: number; ip_whitelist: string | null; expires_at: number | null; domain_ids?: string[] }>();
   
   if (!allApiKeys.results || allApiKeys.results.length === 0) {
+    await trackAuthFailure(c.env, ip);
     throw new HTTPException(401, { message: 'Invalid API key' });
   }
   
@@ -197,6 +313,7 @@ export async function apiKeyMiddleware(c: Context<{ Bindings: Env }>, next: Next
   }
   
   if (!verifiedKey) {
+    await trackAuthFailure(c.env, ip);
     throw new HTTPException(401, { message: 'Invalid API key' });
   }
   
@@ -206,25 +323,16 @@ export async function apiKeyMiddleware(c: Context<{ Bindings: Env }>, next: Next
     await c.env.DB.prepare(
       `UPDATE api_keys SET status = 'expired', updated_at = ? WHERE id = ?`
     ).bind(Date.now(), verifiedKey.id).run();
+    await trackAuthFailure(c.env, ip);
     throw new HTTPException(401, { message: 'API key has expired' });
   }
   
   // Check IP whitelist
-  // Extract client IP from Cloudflare header
-  const clientIp = c.req.header('cf-connecting-ip') || 
-                   c.req.raw.headers.get('cf-connecting-ip') ||
-                   c.req.raw.headers.get('CF-Connecting-IP') ||
-                   null;
+  // Use existing IP from helper (already validated at top of function)
+  const clientIp = ip;
   
   // If IP whitelist is required, check it
   if (verifiedKey.allow_all_ips !== 1 && verifiedKey.ip_whitelist) {
-    // Reject if IP cannot be determined
-    if (!clientIp || clientIp.trim() === '' || clientIp.trim() === 'unknown') {
-      throw new HTTPException(403, { 
-        message: 'Access forbidden' 
-      });
-    }
-    
     try {
       const allowedIps = JSON.parse(verifiedKey.ip_whitelist) as string[];
       // Normalize all whitelisted IPs (trim whitespace and filter empty)
@@ -290,7 +398,7 @@ export async function apiKeyMiddleware(c: Context<{ Bindings: Env }>, next: Next
 }
 
 // Combined middleware: accepts either session auth OR API key auth
-export async function authOrApiKeyMiddleware(c: Context<{ Bindings: Env }>, next: Next) {
+export async function authOrApiKeyMiddleware(c: Context<{ Bindings: Env; Variables: Variables }>, next: Next) {
   // Try session auth first
   const sessionToken = getSessionTokenFromRequest(c.req.raw);
   if (sessionToken) {

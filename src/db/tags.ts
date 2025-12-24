@@ -205,8 +205,8 @@ export async function getLinksTagsBatch(
     tagsMap.get(row.link_id)!.push({
       id: row.id,
       name: row.name || '',
-      domain_id: row.domain_id,
-      color: row.color,
+      domain_id: row.domain_id ?? undefined,
+      color: row.color ?? undefined,
       created_at: row.created_at,
     });
   }

@@ -206,13 +206,11 @@ export async function getAnalyticsThresholds(env: Env): Promise<AnalyticsThresho
 export async function getAnalyticsThresholdsOrDefault(env: Env): Promise<AnalyticsThresholds> {
   // Check environment variables first (support both old and new format)
   // Default: 83 days (7-day buffer before Analytics Engine 90-day retention expires)
-  const thresholdFromEnv = env.ANALYTICS_THRESHOLD_DAYS
-    ? parseInt(env.ANALYTICS_THRESHOLD_DAYS, 10)
-    : (env.ANALYTICS_AGGREGATION_THRESHOLD_DAYS
-        ? parseInt(env.ANALYTICS_AGGREGATION_THRESHOLD_DAYS, 10)
-        : (env.ANALYTICS_ENGINE_THRESHOLD_DAYS
-    ? parseInt(env.ANALYTICS_ENGINE_THRESHOLD_DAYS, 10)
-            : 83));
+  const thresholdFromEnv = env.ANALYTICS_AGGREGATION_THRESHOLD_DAYS
+    ? parseInt(env.ANALYTICS_AGGREGATION_THRESHOLD_DAYS, 10)
+    : (env.ANALYTICS_ENGINE_THRESHOLD_DAYS
+        ? parseInt(env.ANALYTICS_ENGINE_THRESHOLD_DAYS, 10)
+        : 83);
 
   // Check database setting
   const setting = await getAnalyticsThresholds(env);

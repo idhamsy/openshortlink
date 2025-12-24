@@ -2,7 +2,7 @@
 
 import type { Context, Next } from 'hono';
 import { HTTPException } from 'hono/http-exception';
-import type { Env, User } from '../types';
+import type { Env, User, Variables } from '../types';
 import { hasPermission, canAccessDomain, canAccessLink, canAccessDomainAction } from '../utils/permissions';
 import { getLinkById } from '../db/links';
 import { getDomainById } from '../db/domains';
@@ -11,7 +11,7 @@ import { getDomainById } from '../db/domains';
  * Require user to have one of the specified roles
  */
 export function requireRole(roles: string[]) {
-  return async (c: Context<{ Bindings: Env }>, next: Next) => {
+  return async (c: Context<{ Bindings: Env; Variables: Variables }>, next: Next) => {
     const user = c.get('user') as User | undefined;
     
     if (!user) {
@@ -32,7 +32,7 @@ export function requireRole(roles: string[]) {
  * Require user to have a specific permission
  */
 export function requirePermission(permission: string) {
-  return async (c: Context<{ Bindings: Env }>, next: Next) => {
+  return async (c: Context<{ Bindings: Env; Variables: Variables }>, next: Next) => {
     const user = c.get('user') as User | undefined;
     
     if (!user) {
@@ -53,7 +53,7 @@ export function requirePermission(permission: string) {
  * Require user to have access to a domain (from query param, body, or route param)
  */
 export function requireDomainAccess() {
-  return async (c: Context<{ Bindings: Env }>, next: Next) => {
+  return async (c: Context<{ Bindings: Env; Variables: Variables }>, next: Next) => {
     const user = c.get('user') as User | undefined;
     
     if (!user) {
@@ -107,7 +107,7 @@ export function requireDomainAccess() {
  * Require user to have access to a link (from route param)
  */
 export function requireLinkAccess(action: 'view' | 'edit' | 'delete' = 'view') {
-  return async (c: Context<{ Bindings: Env }>, next: Next) => {
+  return async (c: Context<{ Bindings: Env; Variables: Variables }>, next: Next) => {
     const user = c.get('user') as User | undefined;
     
     if (!user) {
@@ -147,7 +147,7 @@ export function requireLinkAccess(action: 'view' | 'edit' | 'delete' = 'view') {
  * Require user to have access to a domain (from route param)
  */
 export function requireDomainAccessFromParam(action: 'view' | 'edit' | 'delete' = 'view') {
-  return async (c: Context<{ Bindings: Env }>, next: Next) => {
+  return async (c: Context<{ Bindings: Env; Variables: Variables }>, next: Next) => {
     const user = c.get('user') as User | undefined;
     
     if (!user) {

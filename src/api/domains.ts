@@ -2,7 +2,6 @@
 
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
-import { z } from 'zod';
 import type { Env, User } from '../types';
 import {
   getDomainById,
@@ -13,62 +12,14 @@ import {
   buildDomainSettings,
 } from '../db/domains';
 import { authMiddleware } from '../middleware/auth';
-import { createRateLimit } from '../middleware/rateLimit';
+import { validateJson } from '../middleware/validate';
 import { requireRole, requireDomainAccessFromParam } from '../middleware/authorization';
 import { filterDomainsByAccess } from '../utils/permissions';
+import { createDomainSchema, updateDomainSchema } from '../schemas';
 
 const domainsRouter = new Hono<{ Bindings: Env }>();
 
-// Domain name validation regex
-// Validates: subdomain.example.com, example.com, etc.
-// Rules:
-// - Contains only letters, numbers, dots, and hyphens
-// - Each label (part between dots) is 1-63 characters
-// - Labels cannot start or end with hyphens
-// - Total length max 253 characters (RFC 1035)
-// - Must have at least one dot (for TLD)
-// - No consecutive dots
-const domainNameRegex = /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/;
-
-const createDomainSchema = z.object({
-  cloudflare_account_id: z.string().min(1),
-  domain_name: z.string()
-    .min(1, { message: 'Domain name is required' })
-    .max(253, { message: 'Domain name must be 253 characters or less' })
-    .regex(domainNameRegex, {
-      message: 'Invalid domain name format. Domain must be valid (e.g., example.com, subdomain.example.com)'
-    })
-    .refine((val) => !val.startsWith('.') && !val.endsWith('.'), {
-      message: 'Domain name cannot start or end with a dot'
-    })
-    .refine((val) => !val.includes('..'), {
-      message: 'Domain name cannot contain consecutive dots'
-    }),
-  routes: z.array(z.string().min(1)).min(1).default(['/go/*']), // At least one route required
-  routing_path: z.string().optional(), // Backward compatibility
-  default_redirect_code: z.number().int().min(301).max(308).default(301),
-  status: z.enum(['active', 'inactive', 'pending']).default('active'),
-});
-
-const updateDomainSchema = z.object({
-  domain_name: z.string()
-    .min(1, { message: 'Domain name is required' })
-    .max(253, { message: 'Domain name must be 253 characters or less' })
-    .regex(domainNameRegex, {
-      message: 'Invalid domain name format. Domain must be valid (e.g., example.com, subdomain.example.com)'
-    })
-    .refine((val) => !val.startsWith('.') && !val.endsWith('.'), {
-      message: 'Domain name cannot start or end with a dot'
-    })
-    .refine((val) => !val.includes('..'), {
-      message: 'Domain name cannot contain consecutive dots'
-    })
-    .optional(),
-  routes: z.array(z.string().min(1)).min(1).optional(),
-  routing_path: z.string().optional(),
-  default_redirect_code: z.number().int().min(301).max(308).optional(),
-  status: z.enum(['active', 'inactive', 'pending']).optional(),
-});
+// Schemas imported from ../schemas
 
 // List domains
 domainsRouter.get('/', authMiddleware, async (c) => {
@@ -97,14 +48,12 @@ domainsRouter.get('/:id', authMiddleware, requireDomainAccessFromParam('view'), 
 });
 
 // Create domain (admin only)
-domainsRouter.post('/', authMiddleware, requireRole(['admin', 'owner']), createRateLimit({
-  window: 60,
-  max: 10,
-  key: (c) => `domain:create:${c.req.header('CF-Connecting-IP') || 'unknown'}`,
-}), async (c) => {
+// Note: Rate limiting intentionally removed for simplicity (internal/self-hosted use)
+// Production deployments should use Cloudflare's infrastructure-level rate limiting or add:
+// createRateLimit({ window: 60, max: 10, key: (c) => `domain:create:${c.req.header('CF-Connecting-IP')}` })
+domainsRouter.post('/', authMiddleware, requireRole(['admin', 'owner']), validateJson(createDomainSchema), async (c) => {
   try {
-    const body = await c.req.json();
-    const validated = createDomainSchema.parse(body);
+    const validated = c.req.valid('json');
 
     // Check if domain already exists
     const existing = await getDomainByName(c.env, validated.domain_name);
@@ -148,10 +97,9 @@ domainsRouter.post('/', authMiddleware, requireRole(['admin', 'owner']), createR
 });
 
 // Update domain (admin only)
-domainsRouter.put('/:id', authMiddleware, requireDomainAccessFromParam('edit'), async (c) => {
+domainsRouter.put('/:id', authMiddleware, requireDomainAccessFromParam('edit'), validateJson(updateDomainSchema), async (c) => {
   const id = c.req.param('id');
-  const body = await c.req.json();
-  const validated = updateDomainSchema.parse(body);
+  const validated = c.req.valid('json');
 
   const existingDomain = await getDomainById(c.env, id);
   if (!existingDomain) {

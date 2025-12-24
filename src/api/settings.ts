@@ -2,9 +2,9 @@
 
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
-import { z } from 'zod';
-import type { Env } from '../types';
+import type { Env, User, Variables } from '../types';
 import { authMiddleware } from '../middleware/auth';
+import { validateJson } from '../middleware/validate';
 import {
   getStatusCheckFrequency,
   setStatusCheckFrequency,
@@ -17,26 +17,22 @@ import {
   setAnalyticsThresholds,
 } from '../db/settings';
 import { getFrequencyLabel } from '../types';
+import {
+  statusCheckFrequencySchema,
+  analyticsAggregationSchema,
+  analyticsThresholdsSchema,
+} from '../schemas';
 
-const settingsRouter = new Hono<{ Bindings: Env }>();
+const settingsRouter = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-// Validation schema
-const statusCheckFrequencySchema = z.object({
-  frequency: z.object({
-    value: z.number().int().min(1).max(365),
-    unit: z.enum(['days', 'weeks']),
-  }),
-  enabled: z.boolean(),
-  check_top_100_daily: z.boolean(),
-  batch_size: z.number().int().min(10).max(1000).default(100),
-});
+// Schemas imported from ../schemas
 
 // Get status check frequency setting
 settingsRouter.get('/status-check-frequency', authMiddleware, async (c) => {
   const user = c.get('user');
   
   // Only admin/owner can view settings
-  if (user.role !== 'admin' && user.role !== 'owner') {
+  if (!user || (user.role !== 'admin' && user.role !== 'owner')) {
     throw new HTTPException(403, { message: 'Insufficient permissions' });
   }
 
@@ -52,16 +48,15 @@ settingsRouter.get('/status-check-frequency', authMiddleware, async (c) => {
 });
 
 // Update status check frequency setting
-settingsRouter.put('/status-check-frequency', authMiddleware, async (c) => {
-  const user = c.get('user');
+settingsRouter.put('/status-check-frequency', authMiddleware, validateJson(statusCheckFrequencySchema), async (c) => {
+  const user = c.get('user') as User;
   
   // Only admin/owner can update settings
-  if (user.role !== 'admin' && user.role !== 'owner') {
+  if (!user || (user.role !== 'admin' && user.role !== 'owner')) {
     throw new HTTPException(403, { message: 'Insufficient permissions' });
   }
 
-  const body = await c.req.json();
-  const validated = statusCheckFrequencySchema.parse(body);
+  const validated = c.req.valid('json');
 
   await setStatusCheckFrequency(
     c.env,
@@ -91,7 +86,7 @@ settingsRouter.get('/analytics-aggregation', authMiddleware, async (c) => {
   const user = c.get('user');
   
   // Only admin/owner can view settings
-  if (user.role !== 'admin' && user.role !== 'owner') {
+  if (!user || (user.role !== 'admin' && user.role !== 'owner')) {
     throw new HTTPException(403, { message: 'Insufficient permissions' });
   }
 
@@ -104,18 +99,15 @@ settingsRouter.get('/analytics-aggregation', authMiddleware, async (c) => {
 });
 
 // Update analytics aggregation enabled setting
-settingsRouter.put('/analytics-aggregation', authMiddleware, async (c) => {
-  const user = c.get('user');
+settingsRouter.put('/analytics-aggregation', authMiddleware, validateJson(analyticsAggregationSchema), async (c) => {
+  const user = c.get('user') as User;
   
   // Only admin/owner can update settings
-  if (user.role !== 'admin' && user.role !== 'owner') {
+  if (!user || (user.role !== 'admin' && user.role !== 'owner')) {
     throw new HTTPException(403, { message: 'Insufficient permissions' });
   }
 
-  const body = await c.req.json();
-  const validated = z.object({
-    enabled: z.boolean(),
-  }).parse(body);
+  const validated = c.req.valid('json');
 
   await setAnalyticsAggregationEnabled(
     c.env,
@@ -137,7 +129,7 @@ settingsRouter.get('/analytics-thresholds', authMiddleware, async (c) => {
   const user = c.get('user');
   
   // Only admin/owner can view settings
-  if (user.role !== 'admin' && user.role !== 'owner') {
+  if (!user || (user.role !== 'admin' && user.role !== 'owner')) {
     throw new HTTPException(403, { message: 'Insufficient permissions' });
   }
 
@@ -150,19 +142,16 @@ settingsRouter.get('/analytics-thresholds', authMiddleware, async (c) => {
 });
 
 // Update analytics thresholds
-settingsRouter.put('/analytics-thresholds', authMiddleware, async (c) => {
+settingsRouter.put('/analytics-thresholds', authMiddleware, validateJson(analyticsThresholdsSchema), async (c) => {
   try {
-    const user = c.get('user');
+    const user = c.get('user') as User;
     
     // Only admin/owner can update settings
-    if (user.role !== 'admin' && user.role !== 'owner') {
+    if (!user || (user.role !== 'admin' && user.role !== 'owner')) {
       throw new HTTPException(403, { message: 'Insufficient permissions' });
     }
 
-    const body = await c.req.json();
-    const validated = z.object({
-      threshold_days: z.number().int().min(1).max(90),
-    }).parse(body);
+    const validated = c.req.valid('json');
 
     await setAnalyticsThresholds(
       c.env,

@@ -2,7 +2,6 @@
 
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
-import { z } from 'zod';
 import type { Env, User, ApiKeyContext, Link } from '../types';
 import {
   getLinkById,
@@ -32,77 +31,16 @@ import { generateId, generateSlug } from '../utils/id';
 import { isValidUrl, isValidSlug, normalizeUrl, sanitizeHtml, sanitizeSearchInput, validateNumericBoundary, isReservedSlug } from '../utils/validation';
 import { detectCountryCode, getCountryName } from '../utils/countryMappings';
 import { authMiddleware, authOrApiKeyMiddleware } from '../middleware/auth';
-import { createRateLimit } from '../middleware/rateLimit';
+import { validateJson } from '../middleware/validate';
 import { deleteCachedLink, setCachedLink } from '../services/cache';
 import { requireLinkAccess, requirePermission } from '../middleware/authorization';
 import { canAccessDomain } from '../utils/permissions';
 import { isInfiniteRedirect } from '../utils/domains';
+import { createLinkSchema, updateLinkSchema } from '../schemas';
 
 const linksRouter = new Hono<{ Bindings: Env }>();
 
-// Validation schemas
-const createLinkSchema = z.object({
-  domain_id: z.string().min(1),
-  slug: z.string().optional(),
-  route: z.string().optional(),
-  destination_url: z.string().url(),
-  title: z.string().max(255).optional(),
-  description: z.string().max(5000).optional(),
-  redirect_code: z.number().int().min(301).max(308).default(301),
-  tags: z.array(z.string()).max(10).optional(),
-  category_id: z.string().optional(),
-  expires_at: z.number().optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
-  geo_redirects: z
-    .array(
-      z.object({
-        country_code: z.string().length(2).transform((val) => val.toUpperCase()),
-        destination_url: z.string().url(),
-      })
-    )
-    .max(10)
-    .optional()
-    .default([]),
-  device_redirects: z
-    .array(
-      z.object({
-        device_type: z.enum(['desktop', 'mobile', 'tablet']),
-        destination_url: z.string().url(),
-      })
-    )
-    .optional()
-    .default([]),
-});
-
-const updateLinkSchema = z.object({
-  destination_url: z.string().url().optional(),
-  route: z.string().optional(),
-  title: z.string().max(255).optional(),
-  description: z.string().max(5000).optional(),
-  redirect_code: z.number().int().min(301).max(308).optional(),
-  tags: z.array(z.string()).max(10).optional(),
-  category_id: z.string().optional(),
-  status: z.enum(['active', 'expired', 'archived', 'deleted']).optional(),
-  expires_at: z.number().optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
-  geo_redirects: z
-    .array(
-      z.object({
-        country_code: z.string().length(2).transform((val) => val.toUpperCase()),
-        destination_url: z.string().url(),
-      })
-    )
-    .max(10)
-    .optional(),
-  device_redirects: z
-    .array(
-      z.object({
-        device_type: z.enum(['desktop', 'mobile', 'tablet']),
-        destination_url: z.string().url(),
-      })
-    )
-    .optional(),
-});
+// Schemas imported from ../schemas
 
 // List links
 linksRouter.get('/', authOrApiKeyMiddleware, async (c) => {
@@ -465,15 +403,13 @@ linksRouter.get('/:id', authOrApiKeyMiddleware, async (c) => {
 });
 
 // Create link
-linksRouter.post('/', authOrApiKeyMiddleware, createRateLimit({
-  window: 60,
-  max: 50,
-  key: (c) => `link:create:${c.req.header('CF-Connecting-IP') || 'unknown'}`,
-}), requirePermission('create_links'), async (c) => {
+// Note: Rate limiting intentionally removed for simplicity (internal/self-hosted use)
+// Production deployments should use Cloudflare's infrastructure-level rate limiting or add:
+// createRateLimit({ window: 60, max: 50, key: (c) => `link:create:${c.req.header('CF-Connecting-IP')}` })
+linksRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links'), validateJson(createLinkSchema), async (c) => {
   const ip = c.req.header('cf-connecting-ip') || 'unknown';
 
-  const body = await c.req.json();
-  const validated = createLinkSchema.parse(body);
+  const validated = c.req.valid('json');
 
   // RE-VALIDATE domain access from database for write operations (security)
   // Always check from DB, ignore cache for writes
@@ -652,10 +588,9 @@ linksRouter.post('/', authOrApiKeyMiddleware, createRateLimit({
 });
 
 // Update link
-linksRouter.put('/:id', authOrApiKeyMiddleware, requireLinkAccess('edit'), async (c) => {
+linksRouter.put('/:id', authOrApiKeyMiddleware, requireLinkAccess('edit'), validateJson(updateLinkSchema), async (c) => {
   const id = c.req.param('id');
-  const body = await c.req.json();
-  const validated = updateLinkSchema.parse(body);
+  const validated = c.req.valid('json');
 
   // Use getLinkByIdIncludingDeleted to allow restoring deleted links
   const existingLink = await getLinkByIdIncludingDeleted(c.env, id);

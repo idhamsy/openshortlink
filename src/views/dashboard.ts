@@ -319,24 +319,118 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             
             <!-- Authentication Section -->
             <div style="background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2rem;">
-              <h3 style="margin-bottom: 1rem; color: #007bff;">Authentication</h3>
+              <h3 style="margin-bottom: 1rem; color: #007bff;">🔐 Authentication</h3>
               <p style="margin-bottom: 1rem; color: #666;">All API requests require authentication using an API key in the Authorization header:</p>
               <div style="background: #f8f9fa; padding: 1rem; border-radius: 4px; border-left: 4px solid #007bff; margin-bottom: 1rem;">
                 <code style="font-family: monospace; font-size: 0.9rem;">Authorization: Bearer &lt;your_api_key&gt;</code>
               </div>
+              
               <p style="margin-bottom: 0.5rem; color: #666;"><strong>Base URL:</strong></p>
-              <div style="background: #f8f9fa; padding: 1rem; border-radius: 4px; margin-bottom: 1rem;">
+              <div style="background: #f8f9fa; padding: 1rem; border-radius: 4px; margin-bottom: 1.5rem;">
                 <code id="api-base-url" style="font-family: monospace; font-size: 0.9rem;">/api/v1</code>
               </div>
+              
+              <details style="margin-bottom: 1rem;">
+                <summary style="cursor: pointer; padding: 0.75rem; background: #f8f9fa; border-radius: 4px; font-weight: 600; color: #333; user-select: none;">
+                  🔐 API Key Details - Click to expand/collapse
+                </summary>
+                <div style="padding: 1rem 0;">
+                  <h4 style="margin: 1rem 0 0.5rem 0; color: #333;">📋 API Key Format</h4>
+                  <p style="margin-bottom: 0.5rem; color: #666;">API keys follow this format:</p>
+                  <div style="background: #f8f9fa; padding: 1rem; border-radius: 4px; margin-bottom: 1rem;">
+                    <code style="font-family: monospace; font-size: 0.9rem;">sk_live_&lt;random_string&gt;</code>
+                  </div>
+                  <ul style="margin: 0.5rem 0 1.5rem 1.5rem; color: #666;">
+                    <li><strong>sk_live_</strong> - Prefix indicating a live API key</li>
+                    <li>Keys are shown only once during creation - store them securely</li>
+                    <li>Keys are hashed in the database for security</li>
+                  </ul>
+                  
+                  <h4 style="margin: 1.5rem 0 0.5rem 0; color: #333;">🌐 Domain Scoping</h4>
+                  <p style="margin-bottom: 0.5rem; color: #666;">API keys can be scoped to specific domains:</p>
+                  <ul style="margin: 0.5rem 0 1.5rem 1.5rem; color: #666;">
+                    <li><strong>All Domains:</strong> Leave domain_ids empty during creation</li>
+                    <li><strong>Specific Domains:</strong> Provide array of domain IDs to restrict access</li>
+                    <li>Scoped keys can only access resources within assigned domains</li>
+                  </ul>
+                  
+                  <h4 style="margin: 1.5rem 0 0.5rem 0; color: #333;">🔒 IP Whitelisting</h4>
+                  <p style="margin-bottom: 0.5rem; color: #666;">Control which IPs can use your API key:</p>
+                  <ul style="margin: 0.5rem 0 0 1.5rem; color: #666;">
+                    <li><strong>Allow All IPs:</strong> Set <code>allow_all_ips: true</code></li>
+                    <li><strong>Whitelist Specific IPs:</strong> Provide array of IP addresses in <code>ip_whitelist</code></li>
+                    <li>Both IPv4 and IPv6 addresses are supported</li>
+                  </ul>
+                  
+                  <h4 style="margin: 1.5rem 0 0.5rem 0; color: #333;">⚠️ Error Codes</h4>
+                  <p style="margin-bottom: 1rem; color: #666;">All API responses follow a consistent format. Errors include a status code and descriptive message.</p>
+                  
+                  <h5 style="margin: 1rem 0 0.5rem 0; color: #555; font-size: 0.95rem;">Standard Error Codes</h5>
+                  <table style="width: 100%; border-collapse: collapse; margin-bottom: 1.5rem;">
+                    <thead>
+                      <tr style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">
+                        <th style="padding: 0.75rem; text-align: left; font-weight: 600;">Code</th>
+                        <th style="padding: 0.75rem; text-align: left; font-weight: 600;">Name</th>
+                        <th style="padding: 0.75rem; text-align: left; font-weight: 600;">Description</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr style="border-bottom: 1px solid #dee2e6;">
+                        <td style="padding: 0.75rem; font-family: monospace; color: #dc3545;">400</td>
+                        <td style="padding: 0.75rem; font-weight: 500;">Bad Request</td>
+                        <td style="padding: 0.75rem; color: #666;">Invalid parameters, validation errors, or malformed request</td>
+                      </tr>
+                      <tr style="border-bottom: 1px solid #dee2e6;">
+                        <td style="padding: 0.75rem; font-family: monospace; color: #dc3545;">401</td>
+                        <td style="padding: 0.75rem; font-weight: 500;">Unauthorized</td>
+                        <td style="padding: 0.75rem; color: #666;">Missing, invalid, or expired API key</td>
+                      </tr>
+                      <tr style="border-bottom: 1px solid #dee2e6;">
+                        <td style="padding: 0.75rem; font-family: monospace; color: #dc3545;">403</td>
+                        <td style="padding: 0.75rem; font-weight: 500;">Forbidden</td>
+                        <td style="padding: 0.75rem; color: #666;">Access denied to resource, domain not in scope, or insufficient permissions</td>
+                      </tr>
+                      <tr style="border-bottom: 1px solid #dee2e6;">
+                        <td style="padding: 0.75rem; font-family: monospace; color: #dc3545;">404</td>
+                        <td style="padding: 0.75rem; font-weight: 500;">Not Found</td>
+                        <td style="padding: 0.75rem; color: #666;">Resource doesn't exist or has been deleted</td>
+                      </tr>
+                      <tr style="border-bottom: 1px solid #dee2e6;">
+                        <td style="padding: 0.75rem; font-family: monospace; color: #dc3545;">408</td>
+                        <td style="padding: 0.75rem; font-weight: 500;">Request Timeout</td>
+                        <td style="padding: 0.75rem; color: #666;">Query took too long to execute (only for complex list operations)</td>
+                      </tr>
+                      <tr style="border-bottom: 1px solid #dee2e6;">
+                        <td style="padding: 0.75rem; font-family: monospace; color: #dc3545;">409</td>
+                        <td style="padding: 0.75rem; font-weight: 500;">Conflict</td>
+                        <td style="padding: 0.75rem; color: #666;">Resource already exists (e.g., slug, domain, tag, or category name)</td>
+                      </tr>
+                      <tr style="border-bottom: 1px solid #dee2e6;">
+                        <td style="padding: 0.75rem; font-family: monospace; color: #dc3545;">429</td>
+                        <td style="padding: 0.75rem; font-weight: 500;">Too Many Requests</td>
+                        <td style="padding: 0.75rem; color: #666;">Rate limit exceeded (applies to failed authentication attempts)</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 0.75rem; font-family: monospace; color: #dc3545;">500</td>
+                        <td style="padding: 0.75rem; font-weight: 500;">Internal Server Error</td>
+                        <td style="padding: 0.75rem; color: #666;">Server-side error occurred</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+              
               <div style="background: #fff3cd; padding: 1rem; border-radius: 4px; border-left: 4px solid #ffc107;">
-                <p style="margin: 0; color: #856404;"><strong>⚠️ Important:</strong></p>
+                <p style="margin: 0; color: #856404;"><strong>⚠️ Security Requirements:</strong></p>
                 <ul style="margin: 0.5rem 0 0 1.5rem; color: #856404;">
                   <li>API keys must be active and not expired</li>
                   <li>Your IP address must be whitelisted (if IP whitelist is enabled)</li>
                   <li>Domain scoping applies - you can only access domains assigned to your API key</li>
+                  <li>Never expose API keys in client-side code or public repositories</li>
                 </ul>
               </div>
             </div>
+
             
             <!-- Endpoints Documentation -->
             <div id="api-endpoints-docs"></div>
@@ -569,14 +663,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
                 <h3>500 Error</h3>
                 <p id="status-count-500">-</p>
               </div>
-              <div class="stat-card status-filter-card" style="cursor: pointer;" data-status="timeout">
-                <h3>Timeout</h3>
-                <p id="status-count-timeout">-</p>
-              </div>
-              <div class="stat-card status-filter-card" style="cursor: pointer;" data-status="unknown">
-                <h3>Unknown</h3>
-                <p id="status-count-unknown">-</p>
-              </div>
+
             </div>
           </div>
           <div style="background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
@@ -590,8 +677,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
                   <option value="302">302 Redirect</option>
                   <option value="404">404 Not Found</option>
                   <option value="500">500 Error</option>
-                  <option value="timeout">Timeout</option>
-                  <option value="unknown">Unknown</option>
+
                 </select>
                 <select id="status-domain-filter" style="padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
                   <option value="">All Domains</option>
@@ -671,16 +757,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             <div style="margin-bottom: 2rem;">
                <h2>About <a href="https://openshort.link" target="_blank" style="text-decoration: none; color: inherit;">OpenShort.link</a></h2>
                <p style="margin-top: 0.5rem; line-height: 1.6;"><a href="https://openshort.link" target="_blank" style="text-decoration: none; color: var(--primary-color); font-weight: 500;">OpenShort.link</a> is an all-in-one, open-source link management platform built on Cloudflare Workers, offering high-performance redirects, comprehensive analytics, and multi-tenant capabilities.</p>
-               <div style="margin-top: 1rem; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
-                 <a href="https://github.com/idhamsy/openshortlink" target="_blank" class="btn btn-secondary" style="display: flex; align-items: center; gap: 0.5rem;">
-                    <svg height="20" width="20" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg>
-                    GitHub Repository
-                 </a>
-                 <a href="https://github.com/idhamsy/openshortlink" target="_blank" class="btn btn-secondary" style="display: flex; align-items: center; gap: 0.5rem;">
-                    <svg height="20" width="20" viewBox="0 0 16 16" fill="#e3b341"><path d="M8 .25a.75.75 0 01.673.418l1.882 3.815 4.21.612a.75.75 0 01.416 1.279l-3.046 2.97.719 4.192a.75.75 0 01-1.088.791L8 12.347l-3.766 1.98a.75.75 0 01-1.088-.79l.719-4.192-3.046-2.97a.75.75 0 01.416-1.28l4.21-.612L7.327.668A.75.75 0 018 .25z"></path></svg>
-                    Star on GitHub
-                 </a>
-               </div>
+
             </div>
             <div style="margin-bottom: 2rem;">
                <h2>Resources</h2>
@@ -688,8 +765,26 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
                  <li style="margin-bottom: 0.75rem;"><a href="https://openshort.link/docs" target="_blank" style="text-decoration: none; color: var(--primary-color); display: flex; align-items: center; gap: 0.5rem; font-size: 1.05rem;">📚 Documentation</a></li>
                  <li style="margin-bottom: 0.75rem;"><a href="https://openshort.link/roadmap" target="_blank" style="text-decoration: none; color: var(--primary-color); display: flex; align-items: center; gap: 0.5rem; font-size: 1.05rem;">🗺️ Roadmap</a></li>
                  <li style="margin-bottom: 0.75rem;"><a href="https://github.com/idhamsy/openshortlink/issues" target="_blank" style="text-decoration: none; color: var(--primary-color); display: flex; align-items: center; gap: 0.5rem; font-size: 1.05rem;">🐛 Report a bug</a></li>
-                  <li style="margin-bottom: 0.75rem;"><a href="https://openshort.link/support-us" target="_blank" style="text-decoration: none; color: var(--primary-color); display: flex; align-items: center; gap: 0.5rem; font-size: 1.05rem;">💝 Support Us</a></li>
                </ul>
+            </div>
+
+            <div style="margin-bottom: 2rem; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);">
+               <div style="display: flex; align-items: center; gap: 0.75rem;">
+                 <span style="font-size: 1.5rem;">🚀</span>
+                 <h3 style="margin: 0; font-size: 1.25rem;">Support OpenShort.link</h3>
+               </div>
+               <p style="margin: 0; line-height: 1.6; color: var(--text-color); font-size: 1rem;">
+                 Your support keeps OpenShort.link alive! This project is open-source and free to use. If you find it valuable, please consider giving us a star on GitHub or making a small donation. Your support directly helps us maintain infrastructure and develop new features for the community.
+               </p>
+               <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 0.5rem;">
+                 <a href="https://github.com/idhamsy/openshortlink" target="_blank" class="btn btn-secondary" style="display: flex; align-items: center; gap: 0.5rem; border: 1px solid var(--border-color);">
+                    <svg height="20" width="20" viewBox="0 0 16 16" fill="#e3b341"><path d="M8 .25a.75.75 0 01.673.418l1.882 3.815 4.21.612a.75.75 0 01.416 1.279l-3.046 2.97.719 4.192a.75.75 0 01-1.088.791L8 12.347l-3.766 1.98a.75.75 0 01-1.088-.79l.719-4.192-3.046-2.97a.75.75 0 01.416-1.28l4.21-.612L7.327.668A.75.75 0 018 .25z"></path></svg>
+                    Star on GitHub
+                 </a>
+                 <a href="https://openshort.link/support-us" target="_blank" class="btn btn-primary" style="display: flex; align-items: center; gap: 0.5rem; background-color: #e91e63; border-color: #e91e63; color: white;">
+                    💝 Donate
+                 </a>
+               </div>
             </div>
 
             <div style="margin-bottom: 2rem;">
@@ -820,23 +915,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       </form>
     </div>
   </div>
-  <div id="import-progress-modal" class="modal" style="z-index: 2000;">
-    <div class="modal-content" style="max-width: 400px;">
-      <h2>Importing Links</h2>
-      <div style="margin: 1.5rem 0;">
-        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-          <span id="progress-text">Preparing import...</span>
-          <span id="progress-percent">0%</span>
-        </div>
-        <div style="width: 100%; height: 24px; background: #e0e0e0; border-radius: 12px; overflow: hidden;">
-          <div id="progress-bar" style="height: 100%; background: #007bff; width: 0%; transition: width 0.3s ease; border-radius: 12px;"></div>
-        </div>
-      </div>
-      <div id="progress-complete" style="display: none; text-align: center; margin-top: 1rem;">
-        <button id="progress-ok-btn" class="btn btn-primary" style="min-width: 100px;">OK</button>
-      </div>
-    </div>
-  </div>
+
   <div id="api-key-modal" class="modal">
     <div class="modal-content" style="max-width: 600px;">
       <span class="close">&times;</span>
@@ -861,8 +940,8 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         </div>
         <div class="form-group" id="api-key-ip-whitelist-group" style="display: none;">
           <label for="api-key-ip-whitelist">IP Whitelist (one per line)</label>
-          <textarea id="api-key-ip-whitelist" rows="4" placeholder="192.168.1.1&#10;10.0.0.1"></textarea>
-          <small style="display: block; margin-top: 0.25rem; color: #666;">Enter one IP address per line</small>
+          <textarea id="api-key-ip-whitelist" rows="4" placeholder="192.168.1.1&#10;10.0.0.1&#10;2001:0db8:85a3::8a2e:0370:7334"></textarea>
+          <small style="display: block; margin-top: 0.25rem; color: #666;">Enter one IP address per line. Supports both IPv4 and IPv6 addresses.</small>
         </div>
         <div class="form-group">
           <label>
@@ -1005,8 +1084,11 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
               <li>Navigate to <strong>Workers & Pages</strong> → Your Worker → <strong>Settings</strong> → <strong>Triggers</strong></li>
               <li>Add routes matching the ones you configure here (e.g., <code>example.com/go/*</code>)</li>
             </ol>
-            <p style="margin: 0; font-size: 0.875rem; background: #fff3cd; border-left: 3px solid #ffc107; padding: 0.5rem; border-radius: 3px;">
+            <p style="margin: 0 0 0.5rem 0; font-size: 0.875rem; background: #fff3cd; border-left: 3px solid #ffc107; padding: 0.5rem; border-radius: 3px;">
               ⚠️ <strong>Avoid Conflicts:</strong> Ensure your routes don't clash with existing website paths. Use unique path prefixes (e.g., <code>/go/*</code>, <code>/r/*</code>, <code>/link/*</code>) that aren't used by your main website.
+            </p>
+            <p style="margin: 0.5rem 0 0 0; font-size: 0.875rem; background: #e8f5e9; border-left: 3px solid #4caf50; padding: 0.5rem; border-radius: 3px;">
+              💡 <strong>Using the Entire Domain:</strong> You can use <code>/*</code> as a route to handle all paths on the domain without additional prefixes (e.g., <code>example.com/*</code>). <strong>Only use this if there's no existing website on this domain</strong>, as it will intercept all traffic.
             </p>
           </div>
           
@@ -1374,7 +1456,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         updateToggleButton(collapsed);
       });
     }
-    function showPage(pageName) {
+    async function showPage(pageName) {
       // DEBUG: console.log('showPage called with:', pageName);
       const pages = document.querySelectorAll('.page');
       // DEBUG: console.log('Found', pages.length, 'pages');
@@ -1575,9 +1657,10 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         const state = paginationState.links;
         const offset = (state.page - 1) * state.perPage;
         
-        const domainId = document.getElementById('domain-selector')?.value;
+        const domainSelector = document.getElementById('domain-selector');
+        const domainId = domainSelector?.value || '';
         const searchTerm = document.getElementById('search-input')?.value || '';
-        const statusFilter = document.getElementById('status-filter')?.value || '';
+        // Note: status-filter belongs to Link Monitor page, not Dashboard - do not read it here
         const tagFilter = document.getElementById('tag-filter')?.value || '';
         const categoryFilter = document.getElementById('category-filter')?.value || '';
         
@@ -1585,9 +1668,11 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           limit: state.perPage.toString(),
           offset: offset.toString()
         });
-        if (domainId) params.append('domain_id', domainId);
+        // Only add domain_id if it's a valid non-empty string
+        if (domainId && domainId.trim() !== '' && domainId !== 'undefined') {
+          params.append('domain_id', domainId);
+        }
         if (searchTerm) params.append('search', searchTerm);
-        if (statusFilter) params.append('status', statusFilter);
         if (tagFilter) params.append('tag_id', tagFilter);
         if (categoryFilter) params.append('category_id', categoryFilter);
         
@@ -1675,9 +1760,22 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         console.error('Failed to load links:', error);
         const tbody = document.getElementById('links-tbody');
         if (tbody) {
-          tbody.innerHTML = '<tr><td colspan="7">Error loading links. Check authentication.</td></tr>';
+          let errorMessage = 'Error loading links.';
+          
+          // Provide more specific error messages
+          if (error.message?.includes('401') || error.message?.includes('Unauthorized')) {
+            errorMessage = 'Authentication error. Please log in again.';
+          } else if (error.message?.includes('403') || error.message?.includes('Forbidden')) {
+            errorMessage = 'Access denied. Check domain permissions.';
+          } else if (error.message?.includes('404')) {
+            errorMessage = 'Domain not found. Please select a valid domain.';
+          } else if (error.message?.includes('network') || error.message?.includes('fetch')) {
+            errorMessage = 'Network error. Please check your connection.';
+          }
+          
+          tbody.innerHTML = '<tr><td colspan="7">' + errorMessage + '</td></tr>';
         }
-        showToast('Failed to load links', 'error');
+        showToast('Failed to load links: ' + (error.message || 'Unknown error'), 'error');
       } finally {
         // Loading state is cleared when content is replaced
       }
@@ -1813,15 +1911,8 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         }
       });
       
-      // Default submit handler - only used when not in edit mode
-      // Edit mode will override this with form.onsubmit
-      form?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        // Only call createLink if slug is not disabled (not in edit mode)
-        if (!document.getElementById('link-slug').disabled) {
-        await createLink();
-        }
-      });
+      // NOTE: form.onsubmit is set in resetModal() for create mode
+      // and overridden in editLink() for edit mode. No addEventListener needed.
     }
     let availableDomains = []; // Store domains for route selection
 
@@ -1903,15 +1994,8 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       return div.innerHTML;
     }
     
-    function escapeAttr(text) {
-      if (!text) return '';
-      return String(text)
-        .replace(/&/g, '&amp;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-    }
+    // Note: escapeAttr is defined once in the tag/category section (around line 3080)
+    // to avoid duplicate function definitions. The later definition handles all cases.
     
     
     // Toast notification system moved to /static/dashboard/utils/toast.js
@@ -2297,7 +2381,8 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
     // Initialize search and filter
     function initSearchFilter() {
       const searchInput = document.getElementById('search-input');
-      const statusFilter = document.getElementById('status-filter');
+      // Note: status-filter belongs to Link Monitor page, not Dashboard
+      // Removed listener that incorrectly called loadLinks on status-filter change
       
       // Debounce search input
       let searchTimeout;
@@ -2306,10 +2391,6 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         searchTimeout = setTimeout(() => {
           loadLinks(1); // Reset to page 1 on search
         }, 500);
-      });
-      
-      statusFilter?.addEventListener('change', () => {
-        loadLinks(1); // Reset to page 1 on filter change
       });
       
       // Tag and category filters are now handled by searchable dropdowns
@@ -2989,18 +3070,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
     let editingTagId = null;
     let editingCategoryId = null;
     
-    // HTML escaping function
-    function escapeHtml(text) {
-      if (!text) return '';
-      const map = {
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#039;',
-      };
-      return String(text).replace(/[&<>"']/g, m => map[m]);
-    }
+    // Note: escapeHtml is defined earlier in the script
     
     // Escape for HTML attribute values (handles quotes and special chars)
     function escapeAttr(text) {
@@ -7586,8 +7656,9 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           { name: 'search', type: 'string', required: false, description: 'Search in slug, destination URL, or title' },
           { name: 'tag_id', type: 'string', required: false, description: 'Filter by tag ID' },
           { name: 'category_id', type: 'string', required: false, description: 'Filter by category ID' },
-          { name: 'limit', type: 'number', required: false, description: 'Results per page (1-500, default: 25)' },
-          { name: 'offset', type: 'number', required: false, description: 'Pagination offset (default: 0)' }
+          { name: 'limit', type: 'number', required: false, description: 'Results per page (1-10000, default: 25)' },
+          { name: 'offset', type: 'number', required: false, description: 'Pagination offset (default: 0)' },
+          { name: 'include_redirects', type: 'boolean', required: false, description: 'Include geo and device redirects in response (default: false)' }
         ],
         bodyParams: null,
         fileUpload: false,
@@ -7763,11 +7834,13 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         name: 'Delete Link',
         method: 'DELETE',
         path: '/links/:id',
-        description: 'Delete a link.',
+        description: 'Delete a link (soft delete by default, or permanent delete with hard=true).',
         pathParams: [
           { name: 'id', type: 'string', required: true, description: 'Link ID' }
         ],
-        queryParams: [],
+        queryParams: [
+          { name: 'hard', type: 'string', required: false, description: 'Hard delete (true/false, default: false for soft delete)' }
+        ],
         bodyParams: null,
         fileUpload: false,
         exampleRequest: {
@@ -7779,56 +7852,35 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         }
       },
       {
-        id: 'bulk-create-links',
-        name: 'Bulk Create Links',
+        id: 'bulk-operations',
+        name: 'Bulk Operations',
         method: 'POST',
         path: '/links/bulk',
-        description: 'Create multiple links in a single request.',
+        description: 'Perform bulk operations (update or delete) on multiple links.',
         pathParams: [],
         queryParams: [],
         bodyParams: {
-          links: {
-            type: 'array',
-            required: true,
-            description: 'Array of link objects',
-            items: {
-              domain_id: { type: 'string', required: true },
-              slug: { type: 'string', required: false },
-              destination_url: { type: 'string', required: true },
-              title: { type: 'string', required: false },
-              description: { type: 'string', required: false },
-              redirect_code: { type: 'number', required: false },
-              tags: { type: 'array', required: false },
-              category_id: { type: 'string', required: false }
-            }
-          }
+          action: { type: 'string', required: true, description: 'Action to perform: "update" or "delete"' },
+          link_ids: { type: 'array', required: true, description: 'Array of link IDs to operate on' },
+          updates: { type: 'object', required: false, description: 'Update fields (only for "update" action). Can include: destination_url, title, description, status, tags, category_id, geo_redirects, device_redirects, etc.' }
         },
         fileUpload: false,
         exampleRequest: {
           body: {
-            links: [
-              {
-                domain_id: 'domain_xxx',
-                destination_url: 'https://example.com/1',
-                slug: 'link1'
-              },
-              {
-                domain_id: 'domain_xxx',
-                destination_url: 'https://example.com/2',
-                slug: 'link2'
-              }
-            ]
+            action: 'update',
+            link_ids: ['link_xxx1', 'link_xxx2'],
+            updates: {
+              status: 'archived',
+              tags: ['tag_xxx']
+            }
           }
         },
         exampleResponse: {
           success: true,
-          data: {
-            created: [
-              { id: 'link_xxx1', slug: 'link1' },
-              { id: 'link_xxx2', slug: 'link2' }
-            ],
-            errors: []
-          }
+          data: [
+            { id: 'link_xxx1', success: true },
+            { id: 'link_xxx2', success: true }
+          ]
         }
       },
       {
@@ -7840,10 +7892,10 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         pathParams: [],
         queryParams: [],
         bodyParams: {
-          file: { type: 'file', required: true, description: 'CSV/TSV file' },
+          file: { type: 'file', required: true, description: 'CSV/TSV file (max 5MB)' },
           domain_id: { type: 'string', required: true, description: 'Domain ID' },
           delimiter: { type: 'string', required: false, description: 'Field delimiter (auto-detect if not provided, default: ",")' },
-          column_mapping: { type: 'object', required: false, description: 'Column mapping JSON object' },
+          column_mapping: { type: 'object', required: true, description: 'Column mapping JSON object (maps CSV columns to link fields)' },
           slug_prefix_filter: { type: 'object', required: false, description: 'Slug prefix filter JSON object' }
         },
         fileUpload: true,
@@ -8316,7 +8368,12 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         pathParams: [
           { name: 'id', type: 'string', required: true, description: 'Link ID' }
         ],
-        queryParams: [],
+        queryParams: [
+          { name: 'start_date', type: 'string', required: false, description: 'Start date (ISO format)' },
+          { name: 'end_date', type: 'string', required: false, description: 'End date (ISO format)' },
+          { name: 'group_by', type: 'string', required: false, description: 'Group by (day, week, month, default: day)' },
+          { name: 'data_source', type: 'string', required: false, description: 'Data source (auto, analytics_engine, d1, default: auto)' }
+        ],
         bodyParams: null,
         fileUpload: false,
         exampleRequest: {
@@ -8345,11 +8402,14 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         description: 'Get dashboard analytics with optional filtering.',
         pathParams: [],
         queryParams: [
-          { name: 'link_id', type: 'string', required: false, description: 'Filter by link ID' },
+          { name: 'link_id', type: 'string', required: false, description: 'Filter by single link ID' },
+          { name: 'link_ids', type: 'string', required: false, description: 'Filter by multiple link IDs (comma-separated)' },
           { name: 'domain_id', type: 'string', required: false, description: 'Filter by domain ID' },
+          { name: 'domain_names', type: 'string', required: false, description: 'Filter by domain names (comma-separated)' },
           { name: 'start_date', type: 'string', required: false, description: 'Start date (ISO format)' },
           { name: 'end_date', type: 'string', required: false, description: 'End date (ISO format)' },
-          { name: 'group_by', type: 'string', required: false, description: 'Group by (day, week, month, default: day)' }
+          { name: 'group_by', type: 'string', required: false, description: 'Group by (day, week, month, default: day)' },
+          { name: 'data_source', type: 'string', required: false, description: 'Data source (auto, analytics_engine, d1, default: auto)' }
         ],
         bodyParams: null,
         fileUpload: false,
@@ -8410,7 +8470,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           { name: 'domain_id', type: 'string', required: false, description: 'Filter by domain ID' },
           { name: 'status_code', type: 'number', required: false, description: 'Filter by status code (e.g., 200, 404, 500)' },
           { name: 'search', type: 'string', required: false, description: 'Search in destination URL' },
-          { name: 'limit', type: 'number', required: false, description: 'Results per page (1-500, default: 25)' },
+          { name: 'limit', type: 'number', required: false, description: 'Results per page (1-10000, default: 25)' },
           { name: 'offset', type: 'number', required: false, description: 'Pagination offset (default: 0)' }
         ],
         bodyParams: null,
@@ -8447,7 +8507,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         pathParams: [],
         queryParams: [
           { name: 'destination_url', type: 'string', required: true, description: 'Destination URL to search for' },
-          { name: 'limit', type: 'number', required: false, description: 'Results per page (1-500, default: 25)' },
+          { name: 'limit', type: 'number', required: false, description: 'Results per page (1-10000, default: 25)' },
           { name: 'offset', type: 'number', required: false, description: 'Pagination offset (default: 0)' }
         ],
         bodyParams: null,
@@ -8532,7 +8592,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         pathParams: [],
         queryParams: [],
         bodyParams: {
-          link_ids: { type: 'array', required: true, description: 'Array of link IDs to check' }
+          link_ids: { type: 'array', required: false, description: 'Array of link IDs to check (if empty, checks all links)' }
         },
         fileUpload: false,
         exampleRequest: {
@@ -8792,15 +8852,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       }
     }
     
-    function escapeHtml(text) {
-      if (typeof text !== 'string') text = String(text);
-      return text
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-    }
+    // Note: escapeHtml is defined earlier in the script
     
     function renderApiDocumentation() {
       const container = document.getElementById('api-endpoints-docs');
@@ -10334,26 +10386,16 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       doc += '2. Navigate to Integrations > API Keys\\n';
       doc += '3. Create a new API key\\n';
       doc += '4. Copy the key immediately (it will not be shown again)\\n\\n';
-      doc += '## Rate Limiting\\n\\n';
-      doc += 'API requests are rate limited to prevent abuse. Rate limits vary by endpoint:\\n';
-      doc += '- Most endpoints: 100 requests per minute\\n';
-      doc += '- Link creation: 50 requests per minute\\n';
-      doc += '- Domain creation: 10 requests per minute\\n';
-      doc += '- Tag/Category creation: 50 requests per minute\\n\\n';
-      doc += 'Rate limit headers are included in responses:\\n';
-      const backtick2 = String.fromCharCode(96);
-      doc += '- ' + backtick2 + 'X-RateLimit-Limit' + backtick2 + ': Maximum requests allowed\\n';
-      doc += '- ' + backtick2 + 'X-RateLimit-Remaining' + backtick2 + ': Remaining requests in current window\\n';
-      doc += '- ' + backtick2 + 'X-RateLimit-Reset' + backtick2 + ': Time when the rate limit resets\\n\\n';
+
       doc += '## Error Handling\\n\\n';
       doc += 'All errors follow a consistent format:\\n\\n';
       doc += codeBlock + 'json\\n';
       doc += JSON.stringify({
         success: false,
         error: {
-          code: 'ERROR_CODE',
-          message: 'Human-readable error message',
-          details: {}
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid request data',
+          details: [{ path: 'field_name', message: 'Error details' }]
         }
       }, null, 2) + '\\n';
       doc += codeBlock + '\\n\\n';
@@ -10363,8 +10405,9 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       doc += '- ' + backtick3 + '401' + backtick3 + ': Unauthorized - Invalid or missing API key\\n';
       doc += '- ' + backtick3 + '403' + backtick3 + ': Forbidden - Domain not allowed for this API key or insufficient permissions\\n';
       doc += '- ' + backtick3 + '404' + backtick3 + ': Not Found - Resource not found\\n';
+      doc += '- ' + backtick3 + '408' + backtick3 + ': Request Timeout - Query took too long to execute\\n';
       doc += '- ' + backtick3 + '409' + backtick3 + ': Conflict - Resource already exists (e.g., slug already in use)\\n';
-      doc += '- ' + backtick3 + '429' + backtick3 + ': Too Many Requests - Rate limit exceeded\\n';
+      doc += '- ' + backtick3 + '429' + backtick3 + ': Too Many Requests - Rate limit exceeded (failed auth attempts)\\n';
       doc += '- ' + backtick3 + '500' + backtick3 + ': Internal Server Error - Server error\\n\\n';
       doc += '## Response Format\\n\\n';
       doc += 'All successful responses follow this format:\\n\\n';
@@ -10383,7 +10426,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       doc += '## Pagination\\n\\n';
       const backtick4 = String.fromCharCode(96);
       doc += 'List endpoints support pagination using ' + backtick4 + 'limit' + backtick4 + ' and ' + backtick4 + 'offset' + backtick4 + ' query parameters:\\n';
-      doc += '- ' + backtick4 + 'limit' + backtick4 + ': Number of results per page (1-500, default: 25)\\n';
+      doc += '- ' + backtick4 + 'limit' + backtick4 + ': Number of results per page (1-10000 for links, 1-500 for other resources, default: 25)\\n';
       doc += '- ' + backtick4 + 'offset' + backtick4 + ': Number of results to skip (default: 0)\\n\\n';
       doc += 'Pagination information is included in the response:\\n';
       doc += '- ' + backtick4 + 'total' + backtick4 + ': Total number of results\\n';
@@ -10499,7 +10542,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
     }
     
     function generateOpenaiJson() {
-      const baseUrl = 'https://example.com' + API_BASE;
+      const baseUrl = window.location.origin + API_BASE;
       
       // Build OpenAPI 3.0 spec
       const openapi = {
@@ -10585,6 +10628,9 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             '404': {
               description: 'Not Found - Resource not found'
             },
+            '408': {
+              description: 'Request Timeout - Query took too long to execute'
+            },
             '409': {
               description: 'Conflict - Resource already exists'
             },
@@ -10605,7 +10651,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             required: param.required,
             description: param.description,
             schema: {
-              type: param.type === 'number' ? 'integer' : 'string'
+              type: param.type === 'number' ? 'integer' : param.type === 'boolean' ? 'boolean' : 'string'
             }
           });
         });
@@ -10618,7 +10664,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             required: param.required || false,
             description: param.description,
             schema: {
-              type: param.type === 'number' ? 'integer' : 'string'
+              type: param.type === 'number' ? 'integer' : param.type === 'boolean' ? 'boolean' : 'string'
             }
           });
         });
@@ -10641,6 +10687,8 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
               schema = { type: 'array', items: { type: 'string' } };
             } else if (paramType === 'object') {
               schema = { type: 'object', additionalProperties: true };
+            } else if (paramType === 'file') {
+              schema = { type: 'string', format: 'binary' };
             } else {
               schema = { type: 'string' };
             }
@@ -10655,16 +10703,19 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             }
           });
           
+          // Use multipart/form-data for file uploads
+          const contentType = endpoint.fileUpload ? 'multipart/form-data' : 'application/json';
+          
           operation.requestBody = {
             required: bodyRequired.length > 0,
             content: {
-              'application/json': {
+              [contentType]: {
                 schema: {
                   type: 'object',
                   properties: bodyProperties,
                   required: bodyRequired.length > 0 ? bodyRequired : undefined
                 },
-                example: endpoint.exampleRequest?.body || {}
+                example: endpoint.fileUpload ? undefined : (endpoint.exampleRequest?.body || {})
               }
             }
           };
@@ -10754,17 +10805,17 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
     }
     
     function copyToClipboard(text) {
-      if (typeof text === 'string') {
+      // First check if 'text' is an element ID (for API docs copy buttons)
+      const element = document.getElementById(text);
+      if (element) {
+        navigator.clipboard.writeText(element.textContent).then(() => {
+          showToast('Copied to clipboard', 'success');
+        });
+      } else if (typeof text === 'string') {
+        // Otherwise treat as literal text to copy
         navigator.clipboard.writeText(text).then(() => {
           showToast('Copied to clipboard', 'success');
         });
-      } else {
-        const element = document.getElementById(text);
-        if (element) {
-          navigator.clipboard.writeText(element.textContent).then(() => {
-            showToast('Copied to clipboard', 'success');
-          });
-        }
       }
     }
     
@@ -10872,8 +10923,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         document.getElementById('status-count-200').textContent = summary['200'] || 0;
         document.getElementById('status-count-404').textContent = summary['404'] || 0;
         document.getElementById('status-count-500').textContent = summary['500'] || 0;
-        document.getElementById('status-count-timeout').textContent = summary['timeout'] || 0;
-        document.getElementById('status-count-unknown').textContent = summary['unknown'] || 0;
+        // Note: timeout/unknown status cards removed from UI, no need to update them
       } catch (error) {
         console.error('Failed to load status summary:', error);
       }
@@ -13652,7 +13702,6 @@ renderLinkAnalyticsUTM = function (container, data) {
     item.medium || '-',
     item.clicks.toLocaleString()
   ]);
-  renderPaginatedTable(container, 'UTM Campaigns', ['Campaign', 'Source', 'Medium', 'Clicks'], rows, 'utm_table');
   renderPaginatedTable(container, 'UTM Campaigns', ['Campaign', 'Source', 'Medium', 'Clicks'], rows, 'utm_table');
 };
 

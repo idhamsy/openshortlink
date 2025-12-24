@@ -282,18 +282,18 @@ export async function getAllApiKeyDomains(env: Env): Promise<{ api_key_id: strin
 }
 
 export async function setApiKeyDomains(env: Env, apiKeyId: string, domainIds: string[]): Promise<void> {
-  // Validate all domain IDs exist and are active
+  // Validate all domain IDs exist (don't check status - allow any existing domain)
   if (domainIds.length > 0) {
     const placeholders = domainIds.map(() => '?').join(',');
     const existingDomains = await env.DB.prepare(
-      `SELECT id FROM domains WHERE id IN (${placeholders}) AND status = 'active'`
+      `SELECT id FROM domains WHERE id IN (${placeholders})`
     ).bind(...domainIds).all<{ id: string }>();
 
     const existingDomainIds = new Set((existingDomains.results || []).map(d => d.id));
     const invalidDomainIds = domainIds.filter(id => !existingDomainIds.has(id));
 
     if (invalidDomainIds.length > 0) {
-      throw new Error(`Invalid or inactive domain IDs: ${invalidDomainIds.join(', ')}`);
+      throw new Error(`Domain IDs not found: ${invalidDomainIds.join(', ')}`);
     }
   }
 
@@ -305,9 +305,9 @@ export async function setApiKeyDomains(env: Env, apiKeyId: string, domainIds: st
   // Add INSERT statements
   if (domainIds.length > 0) {
     const insertStmt = env.DB.prepare(`INSERT INTO api_key_domains (api_key_id, domain_id) VALUES (?, ?)`);
-    for (const domainId of domainIds) {
-      statements.push(insertStmt.bind(apiKeyId, domainId));
-    }
+    statements.push(
+      ...domainIds.map(domainId => insertStmt.bind(apiKeyId, domainId))
+    );
   }
 
   // Execute all in one atomic transaction

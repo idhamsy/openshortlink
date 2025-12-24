@@ -202,7 +202,7 @@ export async function listLinks(
     params.push(options.domainId);
   }
   if (options.status) {
-    query += ' AND status = ?';
+    query += ' AND l.status = ?';
     params.push(options.status);
   }
   if (options.search) {
@@ -385,6 +385,7 @@ export async function listLinksWithTagFilter(
     offset?: number;
     search?: string;
     tagId?: string;
+    categoryId?: string;
   } = {}
 ): Promise<{ links: Link[]; totalCount: number }> {
   // Early return if domainIds is explicitly an empty array (user has no domain access)
@@ -438,6 +439,12 @@ export async function listLinksWithTagFilter(
   if (options.tagId) {
     query += ` AND t.id = ?`;
     params.push(options.tagId);
+  }
+
+  // Category filtering
+  if (options.categoryId) {
+    query += ` AND l.category_id = ?`;
+    params.push(options.categoryId);
   }
 
   // Get total count (before pagination)
