@@ -47,7 +47,8 @@ app.use('*', async (c, next) => {
   // Exclude auth endpoints from CSRF (they create sessions, can't have CSRF token before login)
   const isAuthEndpoint = path === '/api/auth/login' || 
                          path === '/api/auth/register' ||
-                         path === '/api/auth/refresh';
+                         path === '/api/auth/refresh' ||
+                         path === '/api/auth/mfa/verify';
   
   if (isAdminRoute && !isAuthEndpoint) {
     // Apply CSRF and security headers for dashboard/API routes

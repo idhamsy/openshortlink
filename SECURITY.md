@@ -146,7 +146,7 @@ When deploying OpenShort.link, follow these best practices:
 6. **Principle of Least Privilege**
    - Grant users the minimum required permissions
    - Regularly audit user roles and access
-   - Remove inactive user accounts
+   - Revoke access for inactive user accounts
 
 7. **Trust and Access Control**
    - Only grant user accounts to trusted individuals

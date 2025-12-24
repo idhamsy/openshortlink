@@ -1994,15 +1994,8 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       return div.innerHTML;
     }
     
-    function escapeAttr(text) {
-      if (!text) return '';
-      return String(text)
-        .replace(/&/g, '&amp;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-    }
+    // Note: escapeAttr is defined once in the tag/category section (around line 3080)
+    // to avoid duplicate function definitions. The later definition handles all cases.
     
     
     // Toast notification system moved to /static/dashboard/utils/toast.js
@@ -2388,7 +2381,8 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
     // Initialize search and filter
     function initSearchFilter() {
       const searchInput = document.getElementById('search-input');
-      const statusFilter = document.getElementById('status-filter');
+      // Note: status-filter belongs to Link Monitor page, not Dashboard
+      // Removed listener that incorrectly called loadLinks on status-filter change
       
       // Debounce search input
       let searchTimeout;
@@ -2397,10 +2391,6 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         searchTimeout = setTimeout(() => {
           loadLinks(1); // Reset to page 1 on search
         }, 500);
-      });
-      
-      statusFilter?.addEventListener('change', () => {
-        loadLinks(1); // Reset to page 1 on filter change
       });
       
       // Tag and category filters are now handled by searchable dropdowns
@@ -10815,17 +10805,17 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
     }
     
     function copyToClipboard(text) {
-      if (typeof text === 'string') {
+      // First check if 'text' is an element ID (for API docs copy buttons)
+      const element = document.getElementById(text);
+      if (element) {
+        navigator.clipboard.writeText(element.textContent).then(() => {
+          showToast('Copied to clipboard', 'success');
+        });
+      } else if (typeof text === 'string') {
+        // Otherwise treat as literal text to copy
         navigator.clipboard.writeText(text).then(() => {
           showToast('Copied to clipboard', 'success');
         });
-      } else {
-        const element = document.getElementById(text);
-        if (element) {
-          navigator.clipboard.writeText(element.textContent).then(() => {
-            showToast('Copied to clipboard', 'success');
-          });
-        }
       }
     }
     
@@ -10933,10 +10923,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         document.getElementById('status-count-200').textContent = summary['200'] || 0;
         document.getElementById('status-count-404').textContent = summary['404'] || 0;
         document.getElementById('status-count-500').textContent = summary['500'] || 0;
-        const timeoutEl = document.getElementById('status-count-timeout');
-        if (timeoutEl) timeoutEl.textContent = summary['timeout'] || 0;
-        const unknownEl = document.getElementById('status-count-unknown');
-        if (unknownEl) unknownEl.textContent = summary['unknown'] || 0;
+        // Note: timeout/unknown status cards removed from UI, no need to update them
       } catch (error) {
         console.error('Failed to load status summary:', error);
       }

@@ -120,14 +120,10 @@ usersRouter.post('/', authMiddleware, requireRole(['admin', 'owner']), validateJ
   }
 
   // #13 FIX: Log warning for weak passwords (admin flexibility preserved)
-  // Strong password requirements: min 12 chars, uppercase, lowercase, number, special char
+  // Uses centralized strongPasswordSchema for consistent validation
+  const { strongPasswordSchema } = await import('../schemas/auth');
   const password = validated.password;
-  const isStrongPassword = 
-    password.length >= 12 &&
-    /[A-Z]/.test(password) &&
-    /[a-z]/.test(password) &&
-    /[0-9]/.test(password) &&
-    /[!@#$%^&*(),.?":{}|<>]/.test(password);
+  const isStrongPassword = strongPasswordSchema.safeParse(password).success;
   
   if (!isStrongPassword) {
     console.warn(`[SECURITY] User "${validated.username}" created with weak password (does not meet strong password requirements)`);

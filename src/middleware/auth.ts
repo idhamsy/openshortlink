@@ -25,7 +25,7 @@ const getFailedAuthWindow = (env: Env): number => {
   return isNaN(parsed) ? 7200 : parsed; // Default 2 hours
 };
 
-// Rate limit data structure for token bucket algorithm
+// Rate limit data structure for fixed-window rate limiting
 interface RateLimitData {
   firstFailure: number;  // Unix timestamp (seconds) of first failure in window
   count: number;         // Number of failures in current window
@@ -92,8 +92,7 @@ async function trackAuthFailure(env: Env, ip: string): Promise<void> {
 // Helper: Get client IP from request
 function getClientIp(c: Context<{ Bindings: Env; Variables: Variables }>): string | null {
   return c.req.header('cf-connecting-ip') || 
-         c.req.header('x-forwarded-for')?.split(',')[0] ||
-         c.req.raw.headers.get('CF-Connecting-IP') ||
+         c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ||
          null;
 }
 
@@ -114,7 +113,8 @@ export async function authMiddleware(c: Context<{ Bindings: Env; Variables: Vari
   const token = getSessionTokenFromRequest(c.req.raw);
   
   if (!token) {
-    await trackAuthFailure(c.env, ip);
+    // Don't track missing tokens as failures - legitimate users visit protected pages
+    // before logging in (new visitors, expired sessions, cleared cookies)
     throw new HTTPException(401, { message: 'Authentication required' });
   }
 
