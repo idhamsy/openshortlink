@@ -285,7 +285,11 @@ authRouter.post('/logout', optionalAuth, async (c) => {
 
 // Refresh access token - schema imported from ../schemas
 
-authRouter.post('/refresh', validateJson(refreshTokenSchema), async (c) => {
+authRouter.post('/refresh', createRateLimit({
+  window: 60,
+  max: 10,
+  key: (c) => `auth:refresh:${c.req.header('CF-Connecting-IP') || 'unknown'}`,
+}), validateJson(refreshTokenSchema), async (c) => {
   const validated = c.req.valid('json');
 
   // Get refresh token from body or cookie

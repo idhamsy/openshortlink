@@ -14,7 +14,7 @@ import { hashPassword } from '../utils/crypto';
 import { authMiddleware } from '../middleware/auth';
 import { validateJson } from '../middleware/validate';
 import { requireRole } from '../middleware/authorization';
-import { createUserSchema, updateUserSchema, setUserDomainsSchema } from '../schemas';
+import { createUserSchema, updateUserSchema, setUserDomainsSchema, strongPasswordSchema } from '../schemas';
 import { setUserDomains, getUserDomains, getAllUserDomains } from '../db/userDomains';
 import { getDomainById } from '../db/domains';
 import { logAuditEvent, getIpAddress, getUserAgent } from '../services/audit';
@@ -121,7 +121,6 @@ usersRouter.post('/', authMiddleware, requireRole(['admin', 'owner']), validateJ
 
   // #13 FIX: Log warning for weak passwords (admin flexibility preserved)
   // Uses centralized strongPasswordSchema for consistent validation
-  const { strongPasswordSchema } = await import('../schemas/auth');
   const password = validated.password;
   const isStrongPassword = strongPasswordSchema.safeParse(password).success;
   

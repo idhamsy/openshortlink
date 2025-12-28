@@ -1498,7 +1498,9 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             'analytics-utm',
             'analytics-custom-params',
             'analytics-os',
-            'analytics-browsers'
+            'analytics-browsers',
+            'link-analytics',
+            'links-by-destination'
           ];
           if (pagesToHideSelector.includes(pageName)) {
             domainSelector.style.display = 'none';
@@ -1762,14 +1764,17 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         if (tbody) {
           let errorMessage = 'Error loading links.';
           
+          // Normalize error to string for robust checking (handles non-Error objects)
+          const errorStr = String(error?.message || error || '');
+          
           // Provide more specific error messages
-          if (error.message?.includes('401') || error.message?.includes('Unauthorized')) {
+          if (errorStr.includes('401') || errorStr.includes('Unauthorized')) {
             errorMessage = 'Authentication error. Please log in again.';
-          } else if (error.message?.includes('403') || error.message?.includes('Forbidden')) {
+          } else if (errorStr.includes('403') || errorStr.includes('Forbidden')) {
             errorMessage = 'Access denied. Check domain permissions.';
-          } else if (error.message?.includes('404')) {
+          } else if (errorStr.includes('404')) {
             errorMessage = 'Domain not found. Please select a valid domain.';
-          } else if (error.message?.includes('network') || error.message?.includes('fetch')) {
+          } else if (errorStr.includes('network') || errorStr.includes('fetch')) {
             errorMessage = 'Network error. Please check your connection.';
           }
           
