@@ -849,6 +849,13 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           </small>
         </div>
         <div class="form-group">
+          <label for="link-password">Password (Optional)</label>
+          <input type="password" id="link-password" placeholder="Leave blank for no password">
+          <small style="display: block; margin-top: 0.25rem; color: #666;">
+            Restrict access to this link with a password.
+          </small>
+        </div>
+        <div class="form-group">
           <label for="link-category">Category (optional)</label>
           <select id="link-category">
             <option value="">No Category</option>
@@ -2035,6 +2042,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           description: document.getElementById('link-description').value || undefined,
           redirect_code: parseInt(document.getElementById('link-redirect-code').value),
           category_id: document.getElementById('link-category').value || undefined,
+          password: document.getElementById('link-password').value || undefined,
         };
         // Only include tags if they exist
         if (selectedTags && selectedTags.length > 0) {
@@ -2114,6 +2122,8 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         document.getElementById('link-title').value = link.data.title || '';
         document.getElementById('link-description').value = link.data.description || '';
         document.getElementById('link-redirect-code').value = link.data.redirect_code || 301;
+        document.getElementById('link-password').value = ''; // Don't show hash, just empty for "no change"
+        document.getElementById('link-password').placeholder = link.data.password_hash ? '******** (Leave blank to keep current)' : 'Leave blank for no password';
         
         // Set category AFTER categories are loaded
         // Set category AFTER categories are loaded
@@ -2180,6 +2190,28 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
               redirect_code: parseInt(document.getElementById('link-redirect-code').value),
               category_id: document.getElementById('link-category').value || undefined,
             };
+
+            const password = document.getElementById('link-password').value;
+            if (password) {
+              formData.password = password;
+            } else if (password === '') {
+               // If empty, check if we want to remove it?
+               // Wait, logic is: blank = no change if exists, or no password if new?
+               // The placeholder says "Leave blank to keep current" if hash exists.
+               // So if blank, we send undefined (no change).
+               // But how to remove password?
+               // Maybe we need a checkbox or explicit action?
+               // For now, assume blank = no change.
+               // Actually, if user wants to remove password, they might clear it.
+               // But blank usually means "ignore".
+               // Let's stick to: if blank, send undefined (api ignores it).
+               // If user types something, send it.
+               // To remove password, we might need a "Clear Password" button or specific UI.
+               // For simplicity in this task: Only support setting/changing password.
+               // To clear, maybe send a special value? But API expects string.
+               // Let's just handle setting for now.
+            }
+
             // Only include tags if they exist
             if (selectedTags && selectedTags.length > 0) {
               formData.tags = selectedTags.map(t => typeof t === 'string' ? t : t.id);

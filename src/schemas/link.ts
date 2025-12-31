@@ -41,6 +41,7 @@ const baseLinkSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).optional(),
   geo_redirects: z.array(geoRedirectSchema).max(10).optional().default([]),
   device_redirects: z.array(deviceRedirectSchema).optional().default([]),
+  password: z.string().max(100).optional(), // Plain text password input
 });
 
 // ============================================================================

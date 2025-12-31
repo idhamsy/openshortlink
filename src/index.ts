@@ -9,7 +9,9 @@ import { csrfProtection } from './middleware/csrf';
 import { securityHeaders } from './middleware/security';
 import { cacheControl } from './middleware/cache-control';
 import { handleRedirect } from './services/redirect';
-import { getDomainByRoutingPath } from './db/domains';
+import { getDomainByRoutingPath, getDomainById } from './db/domains';
+import { getLinkById } from './db/links';
+import { verifyPassword, generateAuthCookie } from './utils/crypto';
 
 // Import API routes (static - they're small and needed for functionality)
 import { linksRouter } from './api/links';
@@ -272,6 +274,66 @@ app.route('/api/v1/tags', tagsRouter);
 app.route('/api/v1/categories', categoriesRouter);
 app.route('/api/v1/api-keys', apiKeysRouter);
 app.route('/api/v1/settings', settingsRouter);
+
+// ============================================================================
+// PASSWORD VERIFICATION HANDLER
+// ============================================================================
+
+app.post('/__verify_password__', async (c) => {
+  try {
+    const body = await c.req.parseBody();
+    const linkId = body['link_id'] as string;
+    const password = body['password'] as string;
+    // We ignore the domain from body to prevent open redirects
+    // const domain = body['domain'] as string;
+    const slug = body['slug'] as string;
+
+    if (!linkId || !password || !slug) {
+       return c.text('Missing required fields', 400);
+    }
+
+    const link = await getLinkById(c.env, linkId);
+    if (!link) {
+      return c.text('Link not found', 404);
+    }
+
+    // Securely fetch domain
+    const domainObj = await getDomainById(c.env, link.domain_id);
+    if (!domainObj) {
+      return c.text('Domain not found', 404);
+    }
+    const domain = domainObj.domain_name;
+
+    if (!link.password_hash) {
+      // Link is not password protected, just redirect
+      const url = \`https://\${domain}/\${slug}\`;
+      return c.redirect(url);
+    }
+
+    const isValid = await verifyPassword(password, link.password_hash);
+
+    if (isValid) {
+      // Set cookie and redirect
+      // Calculate max-age (e.g. 1 hour)
+      const maxAge = 3600;
+
+      const url = \`https://\${domain}/\${slug}\`;
+      const authCookieValue = await generateAuthCookie(link.password_hash);
+
+      // Set cookie on the domain
+      c.header('Set-Cookie', \`link_access_\${linkId}=\${authCookieValue}; Path=/; Max-Age=\${maxAge}; Secure; HttpOnly; SameSite=Lax\`);
+
+      return c.redirect(url);
+    } else {
+      // Invalid password
+      const url = \`https://\${domain}/\${slug}?error=1\`;
+      return c.redirect(url);
+    }
+  } catch (e) {
+    console.error('Password verification error:', e);
+    return c.text('Internal Server Error', 500);
+  }
+});
 
 // ============================================================================
 // LINK REDIRECT HANDLER - Catch-all for short link redirects

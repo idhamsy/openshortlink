@@ -109,3 +109,11 @@ export async function verifyApiKey(apiKey: string, storedHash: string): Promise<
   return await verifyPassword(apiKey, storedHash);
 }
 
+// Generate auth cookie value from password hash
+export async function generateAuthCookie(passwordHash: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(passwordHash + 'authenticated');
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
