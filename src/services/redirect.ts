@@ -5,6 +5,7 @@ import { getCachedLink, setCachedLink } from './cache';
 import { getLinkBySlug, incrementClickCount } from '../db/links';
 import { getGeoRedirects, getDeviceRedirects } from '../db/linkRedirects';
 import { trackClick, parseUserAgent, extractUtmParams, hashIpAddress, formatDateForGrouping, extractReferrerDomain } from './analytics';
+import { passwordHtml } from '../views/password';
 
 /**
  * Merges query parameters from the request URL into the destination URL.
@@ -166,6 +167,30 @@ export async function handleRedirect(
   // We need to compare seconds with seconds
   if (cached.expires_at && cached.expires_at < Math.floor(Date.now() / 1000)) {
     return new Response('Link has expired', { status: 410 });
+  }
+
+  // Password Protection Check
+  if (cached.password_hash) {
+    const cookieHeader = request.headers.get('Cookie');
+    const authCookie = cookieHeader?.match(new RegExp(`link_access_${cached.link_id}=([^;]+)`))?.[1];
+
+    // Simple check: if cookie is "valid" (in real world, sign this)
+    if (authCookie !== 'valid') {
+       // Return password prompt
+       // We need to replace placeholders
+       let html = passwordHtml
+         .replace('{{DOMAIN}}', domain.domain_name)
+         .replace('{{SLUG}}', slug)
+         .replace('{{LINK_ID}}', cached.link_id);
+
+       return new Response(html, {
+         status: 200,
+         headers: {
+           'Content-Type': 'text/html',
+           'Cache-Control': 'no-store', // Don't cache the prompt
+         }
+       });
+    }
   }
 
   // Strict Routing Check (performed AFTER cache retrieval to ensure it applies to cached links too)

@@ -37,6 +37,7 @@ import { requireLinkAccess, requirePermission } from '../middleware/authorizatio
 import { canAccessDomain } from '../utils/permissions';
 import { isInfiniteRedirect } from '../utils/domains';
 import { createLinkSchema, updateLinkSchema } from '../schemas';
+import { hashPassword } from '../utils/crypto';
 
 const linksRouter = new Hono<{ Bindings: Env }>();
 
@@ -514,6 +515,12 @@ linksRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links'),
     metadata = JSON.stringify(metadataObj);
   }
 
+  // Hash password if provided
+  let passwordHash: string | undefined;
+  if (validated.password) {
+    passwordHash = await hashPassword(validated.password);
+  }
+
   // Create link
   const link = await createLink(c.env, {
     domain_id: validated.domain_id,
@@ -524,6 +531,7 @@ linksRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links'),
     redirect_code: validated.redirect_code,
     status: 'active',
     expires_at: validated.expires_at,
+    password_hash: passwordHash,
     metadata,
     category_id: validated.category_id, // Use dedicated column
     click_count: 0,
@@ -658,6 +666,16 @@ linksRouter.put('/:id', authOrApiKeyMiddleware, requireLinkAccess('edit'), valid
     }
     // Store category_id in dedicated column (optimization #4)
     updates.category_id = validated.category_id;
+  }
+
+  // Handle password update
+  if (validated.password !== undefined) {
+    if (validated.password === '') {
+      // Empty string means remove password
+      updates.password_hash = null;
+    } else {
+      updates.password_hash = await hashPassword(validated.password);
+    }
   }
 
   // Handle route update

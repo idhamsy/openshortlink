@@ -10,6 +10,8 @@ import { securityHeaders } from './middleware/security';
 import { cacheControl } from './middleware/cache-control';
 import { handleRedirect } from './services/redirect';
 import { getDomainByRoutingPath } from './db/domains';
+import { getLinkById } from './db/links';
+import { verifyPassword } from './utils/crypto';
 
 // Import API routes (static - they're small and needed for functionality)
 import { linksRouter } from './api/links';
@@ -272,6 +274,71 @@ app.route('/api/v1/tags', tagsRouter);
 app.route('/api/v1/categories', categoriesRouter);
 app.route('/api/v1/api-keys', apiKeysRouter);
 app.route('/api/v1/settings', settingsRouter);
+
+// ============================================================================
+// PASSWORD VERIFICATION HANDLER
+// ============================================================================
+
+app.post('/__verify_password__', async (c) => {
+  try {
+    const body = await c.req.parseBody();
+    const linkId = body['link_id'] as string;
+    const password = body['password'] as string;
+    const domain = body['domain'] as string;
+    const slug = body['slug'] as string;
+
+    if (!linkId || !password || !domain || !slug) {
+       return c.text('Missing required fields', 400);
+    }
+
+    const link = await getLinkById(c.env, linkId);
+    if (!link) {
+      return c.text('Link not found', 404);
+    }
+
+    if (!link.password_hash) {
+      // Link is not password protected, just redirect
+      const url = \`https://\${domain}/\${slug}\`;
+      return c.redirect(url);
+    }
+
+    const isValid = await verifyPassword(password, link.password_hash);
+
+    if (isValid) {
+      // Set cookie and redirect
+      // Calculate max-age (e.g. 1 hour)
+      const maxAge = 3600;
+
+      const url = \`https://\${domain}/\${slug}\`;
+
+      // We can't use c.cookie() easily because we are redirecting to a potentially different domain?
+      // Wait, the POST request is to the current domain (where the password page was served).
+      // The password page is served from `short.link/foo`.
+      // The form action is `/__verify_password__`.
+      // Since `handleRedirect` handles `*`, it would also catch `POST /__verify_password__` if we didn't define it here.
+      // But we defined it here BEFORE `app.get('*', ...)`?
+      // `app.get('*')` is at the end.
+      // Wait, `app` uses Hono.
+      // If we visit `short.link/foo`, and it returns HTML.
+      // The form action is `/__verify_password__`.
+      // The browser sends POST to `short.link/__verify_password__`.
+      // Cloudflare Worker receives request for `short.link/__verify_password__`.
+      // We need to ensure this route matches.
+
+      // Set cookie on the domain
+      c.header('Set-Cookie', \`link_access_\${linkId}=valid; Path=/; Max-Age=\${maxAge}; Secure; HttpOnly; SameSite=Lax\`);
+
+      return c.redirect(url);
+    } else {
+      // Invalid password
+      const url = \`https://\${domain}/\${slug}?error=1\`;
+      return c.redirect(url);
+    }
+  } catch (e) {
+    console.error('Password verification error:', e);
+    return c.text('Internal Server Error', 500);
+  }
+});
 
 // ============================================================================
 // LINK REDIRECT HANDLER - Catch-all for short link redirects
