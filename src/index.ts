@@ -9,9 +9,9 @@ import { csrfProtection } from './middleware/csrf';
 import { securityHeaders } from './middleware/security';
 import { cacheControl } from './middleware/cache-control';
 import { handleRedirect } from './services/redirect';
-import { getDomainByRoutingPath } from './db/domains';
+import { getDomainByRoutingPath, getDomainById } from './db/domains';
 import { getLinkById } from './db/links';
-import { verifyPassword } from './utils/crypto';
+import { verifyPassword, generateAuthCookie } from './utils/crypto';
 
 // Import API routes (static - they're small and needed for functionality)
 import { linksRouter } from './api/links';
@@ -284,10 +284,11 @@ app.post('/__verify_password__', async (c) => {
     const body = await c.req.parseBody();
     const linkId = body['link_id'] as string;
     const password = body['password'] as string;
-    const domain = body['domain'] as string;
+    // We ignore the domain from body to prevent open redirects
+    // const domain = body['domain'] as string;
     const slug = body['slug'] as string;
 
-    if (!linkId || !password || !domain || !slug) {
+    if (!linkId || !password || !slug) {
        return c.text('Missing required fields', 400);
     }
 
@@ -295,6 +296,13 @@ app.post('/__verify_password__', async (c) => {
     if (!link) {
       return c.text('Link not found', 404);
     }
+
+    // Securely fetch domain
+    const domainObj = await getDomainById(c.env, link.domain_id);
+    if (!domainObj) {
+      return c.text('Domain not found', 404);
+    }
+    const domain = domainObj.domain_name;
 
     if (!link.password_hash) {
       // Link is not password protected, just redirect
@@ -310,23 +318,10 @@ app.post('/__verify_password__', async (c) => {
       const maxAge = 3600;
 
       const url = \`https://\${domain}/\${slug}\`;
-
-      // We can't use c.cookie() easily because we are redirecting to a potentially different domain?
-      // Wait, the POST request is to the current domain (where the password page was served).
-      // The password page is served from `short.link/foo`.
-      // The form action is `/__verify_password__`.
-      // Since `handleRedirect` handles `*`, it would also catch `POST /__verify_password__` if we didn't define it here.
-      // But we defined it here BEFORE `app.get('*', ...)`?
-      // `app.get('*')` is at the end.
-      // Wait, `app` uses Hono.
-      // If we visit `short.link/foo`, and it returns HTML.
-      // The form action is `/__verify_password__`.
-      // The browser sends POST to `short.link/__verify_password__`.
-      // Cloudflare Worker receives request for `short.link/__verify_password__`.
-      // We need to ensure this route matches.
+      const authCookieValue = await generateAuthCookie(link.password_hash);
 
       // Set cookie on the domain
-      c.header('Set-Cookie', \`link_access_\${linkId}=valid; Path=/; Max-Age=\${maxAge}; Secure; HttpOnly; SameSite=Lax\`);
+      c.header('Set-Cookie', \`link_access_\${linkId}=\${authCookieValue}; Path=/; Max-Age=\${maxAge}; Secure; HttpOnly; SameSite=Lax\`);
 
       return c.redirect(url);
     } else {

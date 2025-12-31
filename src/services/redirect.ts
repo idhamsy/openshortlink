@@ -6,6 +6,7 @@ import { getLinkBySlug, incrementClickCount } from '../db/links';
 import { getGeoRedirects, getDeviceRedirects } from '../db/linkRedirects';
 import { trackClick, parseUserAgent, extractUtmParams, hashIpAddress, formatDateForGrouping, extractReferrerDomain } from './analytics';
 import { passwordHtml } from '../views/password';
+import { generateAuthCookie } from '../utils/crypto';
 
 /**
  * Merges query parameters from the request URL into the destination URL.
@@ -173,9 +174,9 @@ export async function handleRedirect(
   if (cached.password_hash) {
     const cookieHeader = request.headers.get('Cookie');
     const authCookie = cookieHeader?.match(new RegExp(`link_access_${cached.link_id}=([^;]+)`))?.[1];
+    const expectedCookie = await generateAuthCookie(cached.password_hash);
 
-    // Simple check: if cookie is "valid" (in real world, sign this)
-    if (authCookie !== 'valid') {
+    if (authCookie !== expectedCookie) {
        // Return password prompt
        // We need to replace placeholders
        let html = passwordHtml
