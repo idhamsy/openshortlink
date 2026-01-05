@@ -141,6 +141,10 @@ export async function updateLink(
     fields.push('expires_at = ?');
     values.push(updates.expires_at);
   }
+  if (updates.password_hash !== undefined) {
+    fields.push('password_hash = ?');
+    values.push(updates.password_hash);
+  }
   if (updates.metadata !== undefined) {
     fields.push('metadata = ?');
     values.push(updates.metadata);

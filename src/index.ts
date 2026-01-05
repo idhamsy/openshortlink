@@ -19,6 +19,7 @@ import { handleRedirect } from './services/redirect';
 import { getDomainByRoutingPath } from './db/domains';
 
 // Import API routes (static - they're small and needed for functionality)
+import { handlePasswordVerification } from './api/password-auth';
 import { linksRouter } from './api/links';
 import { domainsRouter } from './api/domains';
 import { analyticsRouter } from './api/analytics';
@@ -283,6 +284,20 @@ app.route('/api/v1/settings', settingsRouter);
 // ============================================================================
 // LINK REDIRECT HANDLER - Catch-all for short link redirects
 // ============================================================================
+
+// Handle POST for password verification
+app.post('*', async (c) => {
+  const url = new URL(c.req.url);
+  const path = url.pathname;
+
+  // Only handle POST if it's NOT an API or dashboard route
+  if (!path.startsWith('/api/') && !path.startsWith('/dashboard/')) {
+    return handlePasswordVerification(c);
+  }
+
+  // Default 404 for other POSTs
+  return c.text('Not found', 404);
+});
 
 app.get('*', async (c) => {
   const url = new URL(c.req.url);

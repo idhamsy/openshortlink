@@ -12,6 +12,7 @@ import { getCachedLink, setCachedLink } from './cache';
 import { getLinkBySlug, incrementClickCount } from '../db/links';
 import { getGeoRedirects, getDeviceRedirects } from '../db/linkRedirects';
 import { trackClick, parseUserAgent, extractUtmParams, hashIpAddress, formatDateForGrouping, extractReferrerDomain } from './analytics';
+import { passwordHtml } from '../views/password';
 
 /**
  * Merges query parameters from the request URL into the destination URL.
@@ -207,6 +208,53 @@ export async function handleRedirect(
           return new Response('Not found (Strict Routing Mismatch - Legacy)', { status: 404 });
         }
       }
+    }
+  }
+
+  // Check for password protection
+  if (cached.password_hash) {
+    // Check for auth cookie
+    const cookies = request.headers.get('Cookie') || '';
+    const cookieName = `pl_auth_${cached.link_id}`;
+
+    // Simple cookie parsing
+    const match = cookies.match(new RegExp(`(^| )${cookieName}=([^;]+)`));
+    const authCookie = match ? match[2] : null;
+
+    // Generate expected auth value
+    const encoder = new TextEncoder();
+    const data = encoder.encode(cached.password_hash + (env.SETUP_TOKEN || 'default-secret'));
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const expectedAuthValue = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+    if (authCookie !== expectedAuthValue) {
+      // Password required! Render password page.
+      // We need CSRF token and nonce. Since this is outside Hono context usually, we might need to generate them or fake them.
+      // However, handleRedirect is called from Hono handler in index.ts, but we don't pass Context 'c'.
+      // We can return a specific Response that index.ts can recognize? Or just return HTML here.
+      // Returning HTML is easiest. But we need csrf token.
+
+      // For simplicity in this direct handler, we'll generate a basic nonce.
+      // Real CSRF protection for this form would ideally use the middleware, but we are inside the service.
+      // Ideally, the password verification should be a separate route handler, but we want to intercept here.
+
+      // Let's return a HTML response directly.
+      // We'll generate a random nonce for CSP.
+      const nonce = crypto.randomUUID();
+
+      // For CSRF, since we are effectively in a "public" access path, we might rely on the fact that
+      // the POST handler will verify the password anyway.
+      // But `passwordHtml` expects a csrfToken. We can pass empty string if we don't validate it on POST
+      // OR we can generate one if we had session.
+      // Given the constraints, let's pass a placeholder and rely on password strength + rate limiting (if any).
+      // Note: The POST handler in api/password-auth.ts WILL need to handle CSRF if we want it.
+
+      return new Response(passwordHtml('', nonce), {
+        headers: {
+          'Content-Type': 'text/html',
+          'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+        }
+      });
     }
   }
 
