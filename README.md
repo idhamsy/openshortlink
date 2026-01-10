@@ -2,7 +2,7 @@
 
 <div align="center">
 
-[![License: CPAL-1.0](https://img.shields.io/badge/License-CPAL--1.0-blue.svg)](https://opensource.org/license/cpal-1-0)
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=white)](https://workers.cloudflare.com/)
 ![Serverless](https://img.shields.io/badge/Serverless-FD5750?logo=serverless&logoColor=white)
 
@@ -235,21 +235,11 @@ Have an idea for a new feature? We welcome suggestions!
 
 ## 📄 License
 
-Licensed under the Common Public Attribution License Version 1.0 (CPAL-1.0) - see [LICENSE](./LICENSE) file for details.
+Licensed under the GNU Affero General Public License Version 3 (AGPL-3.0) - see [LICENSE](./LICENSE) file for details.
 
-CPAL is an OSI-approved open-source license. For this project, attribution must be displayed in the dashboard UI. You can satisfy this requirement by displaying either:
-- The OpenShort.link logo (linked to https://openshort.link), OR
-- "Powered by OpenShort.link" text (linked to https://openshort.link), OR
-- Both logo and text
+AGPLv3 is a strong copyleft license. If you run a modified version of this software over a network, you must make the source code available to users of that service.
 
-See [NOTICE](./NOTICE) for complete attribution requirements.
-
-**Why CPAL?**
-- ✅ OSI-Approved open source license
-- ✅ Ensures proper attribution for the original project
-- ✅ Prevents closed-source SaaS forks (network use = distribution)
-- ✅ Compatible with all project dependencies (MIT, Apache, BSD)
-- ✅ Flexible attribution options (logo or text)
+See [NOTICE](./NOTICE) for third-party license information.
 
 ## 🤝 Contributing
 

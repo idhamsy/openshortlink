@@ -4,21 +4,20 @@ Thank you for your interest in contributing to OpenShort.link! We welcome contri
 
 ## 📄 License Compatibility
 
-OpenShort.link is licensed under the **Common Public Attribution License Version 1.0 (CPAL-1.0)**. All contributions must be compatible with this license.
+OpenShort.link is licensed under the **GNU Affero General Public License Version 3 (AGPL-3.0)**. All contributions must be compatible with this license.
 
 ### ✅ Acceptable Licenses for Contributed Code
 
 You may contribute code that is:
-- **Your own original work** (will be licensed under CPAL 1.0)
+- **Your own original work** (will be licensed under AGPL 3.0)
 - Licensed under **MIT, Apache 2.0, BSD, ISC**, or other permissive licenses
 - **Public domain** (Unlicense, CC0)
 
 ### ❌ Incompatible Licenses
 
 **DO NOT** submit code licensed under:
-- **GPL** (any version - GPLv2, GPLv3)
-- **AGPL** (Affero GPL)
-- Any license that conflicts with CPAL's attribution requirements
+- **GPLv2** (without "or later" clause)
+- **CPAL** (if it conflicts with AGPL)
 - Proprietary or closed-source code you don't have rights to
 
 ### 🔍 Verifying Your Contribution
@@ -35,12 +34,8 @@ Before submitting a pull request:
 By submitting a contribution, you certify that:
 
 1. The contribution is your original work, or
-2. You have the right to submit it under the CPAL 1.0 license, and
-3. You understand the contribution will be publicly available under CPAL 1.0
-
-## 🎨 Attribution Requirements
-
-All derivative works must maintain the "Powered by OpenShort.link" attribution in the dashboard UI as specified in the [NOTICE](./NOTICE) file.
+2. You have the right to submit it under the AGPL 3.0 license, and
+3. You understand the contribution will be publicly available under AGPL 3.0
 
 ## 🚀 How to Contribute
 

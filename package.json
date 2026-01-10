@@ -31,7 +31,7 @@
     "url-shortener"
   ],
   "author": "",
-  "license": "CPAL-1.0",
+  "license": "AGPL-3.0-only",
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241106.0",
     "@types/node": "^20.14.0",

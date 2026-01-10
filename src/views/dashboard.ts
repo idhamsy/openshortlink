@@ -1,8 +1,8 @@
 /**
  * Copyright (c) 2025 OpenShort.link Contributors
- * 
- * Licensed under the Common Public Attribution License Version 1.0 (CPAL-1.0)
- * See LICENSE file or https://opensource.org/license/cpal-1-0
+ *
+ * Licensed under the GNU Affero General Public License Version 3 (AGPL-3.0)
+ * See LICENSE file or https://www.gnu.org/licenses/agpl-3.0.txt
  */
 
 import { html } from '../utils/html';
@@ -798,9 +798,9 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             <div style="margin-bottom: 2rem;">
                <h2>License</h2>
                <div style="padding: 1rem; background: var(--hover-bg); border-radius: 8px; border: 1px solid var(--border-color);">
-                  <p style="margin-bottom: 0.5rem; font-weight: 600;">Common Public Attribution License Version 1.0 (CPAL-1.0)</p>
+                  <p style="margin-bottom: 0.5rem; font-weight: 600;">GNU Affero General Public License Version 3 (AGPL-3.0)</p>
                   <p style="margin-bottom: 0.5rem; color: var(--secondary-color); font-size: 0.9rem;">Copyright (c) 2025 OpenShort.link Contributors.</p>
-                  <p style="font-size: 0.95rem; line-height: 1.5; color: var(--text-color);">The source code for OpenShort.link is available under the CPAL-1.0 license. This OSI-approved open source license allows for broad freedom to use and modify the software, while ensuring that the original contributors receive credit for their work.</p>
+                  <p style="font-size: 0.95rem; line-height: 1.5; color: var(--text-color);">The source code for OpenShort.link is available under the AGPL-3.0 license. This license guarantees your freedom to share and change all versions of a program, and requires that any network-deployed modifications must also be open-source.</p>
                </div>
             </div>
           </div>

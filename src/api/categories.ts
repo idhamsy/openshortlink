@@ -1,8 +1,8 @@
 /**
  * Copyright (c) 2025 OpenShort.link Contributors
- * 
- * Licensed under the Common Public Attribution License Version 1.0 (CPAL-1.0)
- * See LICENSE file or https://opensource.org/license/cpal-1-0
+ *
+ * Licensed under the GNU Affero General Public License Version 3 (AGPL-3.0)
+ * See LICENSE file or https://www.gnu.org/licenses/agpl-3.0.txt
  */
 
 // Categories API endpoints
