@@ -19,8 +19,8 @@ database_id = ""  # Replace with your actual database ID
 # You must hardcode your actual KV namespace IDs here (get them from: wrangler kv:namespace list)
 [[kv_namespaces]]
 binding = "CACHE"
-id = ""  # Replace with your actual KV namespace ID
-preview_id = ""  # Replace with your actual KV preview ID
+id = "fake-kv-id"  # Replace with your actual KV namespace ID
+preview_id = "fake-kv-preview-id"  # Replace with your actual KV preview ID
 
 
 # Analytics Engine
