@@ -84,6 +84,56 @@ app.get('/dashboard/health', (c) => {
   return c.json({ status: 'ok', timestamp: Date.now() });
 });
 
+// Debug - Returns Cloudflare GeoIP headers for the current visitor
+// Useful for users to verify exact city/country names before setting up redirect rules
+app.get('/api/v1/debug/my-location', (c) => {
+  // request.cf is populated by Cloudflare by default; the cf-* headers require the
+  // "visitor location headers" Managed Transform, so fall back to them if present.
+  const cf = (c.req.raw as { cf?: Record<string, string> }).cf || {};
+  const city = cf.city || c.req.header('cf-ipcity') || null;
+  const country = cf.country || c.req.header('cf-ipcountry') || null;
+  const region = cf.region || c.req.header('cf-region') || null;
+  const regionCode = cf.regionCode || c.req.header('cf-region-code') || null;
+  const timezone = cf.timezone || c.req.header('cf-timezone') || null;
+
+  return c.json({
+    success: true,
+    data: {
+      city,
+      country,
+      region,
+      region_code: regionCode,
+      timezone,
+      note: 'Use these exact values when setting up city/country redirect rules. City matching is case-insensitive.',
+      docs: 'https://developers.cloudflare.com/fundamentals/reference/http-request-headers/#cf-ipcity',
+    },
+  });
+});
+
+app.get('/dashboard/api/v1/debug/my-location', (c) => {
+  // request.cf is populated by Cloudflare by default; the cf-* headers require the
+  // "visitor location headers" Managed Transform, so fall back to them if present.
+  const cf = (c.req.raw as { cf?: Record<string, string> }).cf || {};
+  const city = cf.city || c.req.header('cf-ipcity') || null;
+  const country = cf.country || c.req.header('cf-ipcountry') || null;
+  const region = cf.region || c.req.header('cf-region') || null;
+  const regionCode = cf.regionCode || c.req.header('cf-region-code') || null;
+  const timezone = cf.timezone || c.req.header('cf-timezone') || null;
+
+  return c.json({
+    success: true,
+    data: {
+      city,
+      country,
+      region,
+      region_code: regionCode,
+      timezone,
+      note: 'Use these exact values when setting up city/country redirect rules. City matching is case-insensitive.',
+      docs: 'https://developers.cloudflare.com/fundamentals/reference/http-request-headers/#cf-ipcity',
+    },
+  });
+});
+
 // Dashboard - Validation endpoint (moved under /dashboard)
 app.get('/dashboard/__validate__', (c) => {
   return c.json({

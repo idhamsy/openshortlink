@@ -27,6 +27,9 @@ export interface Link {
   created_by?: string;
   tags?: Tag[];
   category?: Category;
+  // Joined columns (present when fetched via a JOIN on domains)
+  domain_name?: string;
+  routing_path?: string;
 }
 
 export interface Domain {
@@ -200,6 +203,14 @@ export interface CachedLink {
     desktop?: string;
     mobile?: string;
     tablet?: string;
+  };
+  city_redirects?: Array<{
+    city_name: string;
+    destination_url: string;
+  }>;
+  os_redirects?: {
+    android?: string;
+    ios?: string;
   };
   route?: string; // The specific route this link is assigned to (for strict routing)
   domain_routing_path?: string; // The domain's default routing path (for legacy strict routing check)

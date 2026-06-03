@@ -27,13 +27,24 @@ import { getDomainById } from '../db/domains';
 import {
   getGeoRedirects,
   getDeviceRedirects,
+  getCityRedirects,
+  getOsRedirects,
   upsertGeoRedirect,
   upsertDeviceRedirect,
+  upsertCityRedirect,
+  upsertOsRedirect,
   clearAllGeoRedirects,
   clearAllDeviceRedirects,
+  clearAllCityRedirects,
+  clearAllOsRedirects,
   getLinksGeoRedirectsBatch,
   getLinksDeviceRedirectsBatch,
+  getLinksCityRedirectsBatch,
+  getLinksOsRedirectsBatch,
+  saveLinkRedirects,
+  type RedirectData,
 } from '../db/linkRedirects';
+import { buildCachedLink } from '../services/linkService';
 import { generateId, generateSlug } from '../utils/id';
 import { isValidUrl, isValidSlug, normalizeUrl, sanitizeHtml, sanitizeSearchInput, validateNumericBoundary, isReservedSlug } from '../utils/validation';
 import { detectCountryCode, getCountryName } from '../utils/countryMappings';
@@ -43,6 +54,7 @@ import { deleteCachedLink, setCachedLink } from '../services/cache';
 import { requireLinkAccess, requirePermission } from '../middleware/authorization';
 import { canAccessDomain } from '../utils/permissions';
 import { isInfiniteRedirect } from '../utils/domains';
+import { getEffectiveLinkRoute } from '../utils/route';
 import { createLinkSchema, updateLinkSchema } from '../schemas';
 
 const linksRouter = new Hono<{ Bindings: Env }>();
@@ -210,6 +222,8 @@ linksRouter.get('/', authOrApiKeyMiddleware, async (c) => {
     if (includeRedirects && linkIds.length > 0) {
       promises.push(getLinksGeoRedirectsBatch(c.env, linkIds));
       promises.push(getLinksDeviceRedirectsBatch(c.env, linkIds));
+      promises.push(getLinksCityRedirectsBatch(c.env, linkIds));
+      promises.push(getLinksOsRedirectsBatch(c.env, linkIds));
     }
 
     const results = await Promise.all(promises);
@@ -219,6 +233,8 @@ linksRouter.get('/', authOrApiKeyMiddleware, async (c) => {
     // Extract maps if they exist (based on whether we requested them)
     const geoRedirectsMap = includeRedirects ? results[2] : new Map();
     const deviceRedirectsMap = includeRedirects ? results[3] : new Map();
+    const cityRedirectsMap = includeRedirects ? results[4] : new Map();
+    const osRedirectsMap = includeRedirects ? results[5] : new Map();
 
     // Map results
     const linksWithTags = links.map(link => ({
@@ -227,6 +243,8 @@ linksRouter.get('/', authOrApiKeyMiddleware, async (c) => {
       category: categoriesMap.get(link.id),
       geo_redirects: geoRedirectsMap.get(link.id) || [],
       device_redirects: deviceRedirectsMap.get(link.id) || [],
+      city_redirects: cityRedirectsMap.get(link.id) || [],
+      os_redirects: osRedirectsMap.get(link.id) || [],
     }));
 
     return c.json({
@@ -394,9 +412,11 @@ linksRouter.get('/:id', authOrApiKeyMiddleware, async (c) => {
   }
 
   // Get geo and device redirects in parallel
-  const [geoRedirects, deviceRedirects] = await Promise.all([
+  const [geoRedirects, deviceRedirects, cityRedirects, osRedirects] = await Promise.all([
     getGeoRedirects(c.env, id),
-    getDeviceRedirects(c.env, id)
+    getDeviceRedirects(c.env, id),
+    getCityRedirects(c.env, id),
+    getOsRedirects(c.env, id)
   ]);
 
   return c.json({
@@ -405,6 +425,8 @@ linksRouter.get('/:id', authOrApiKeyMiddleware, async (c) => {
       ...linkWithTags,
       geo_redirects: geoRedirects,
       device_redirects: deviceRedirects,
+      city_redirects: cityRedirects,
+      os_redirects: osRedirects,
     },
   });
 });
@@ -451,12 +473,16 @@ linksRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links'),
     throw new HTTPException(400, { message: 'Cannot create links for inactive domain. Please activate the domain first.' });
   }
 
-  // Validate route if provided
+  // Validate route if explicitly provided
   if (validated.route) {
     if (!domain.routes || !domain.routes.includes(validated.route)) {
       throw new HTTPException(400, { message: 'Invalid route for this domain' });
     }
   }
+
+  // Resolve the effective route: an explicit route wins, otherwise default to the
+  // domain's primary route so the link is always reachable and displays correctly.
+  const effectiveRoute = getEffectiveLinkRoute(domain, validated.route);
 
   // Check API key domain scoping (already declared above)
   if (apiKey && apiKey.domain_ids && apiKey.domain_ids.length > 0) {
@@ -513,10 +539,10 @@ linksRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links'),
 
   // Prepare metadata with route (category_id now goes in dedicated column)
   let metadata: string | undefined = undefined;
-  if (validated.metadata || validated.route) {
+  if (validated.metadata || effectiveRoute) {
     const metadataObj = validated.metadata ? { ...validated.metadata } : {};
-    if (validated.route) {
-      metadataObj.route = validated.route;
+    if (effectiveRoute) {
+      metadataObj.route = effectiveRoute;
     }
     metadata = JSON.stringify(metadataObj);
   }
@@ -542,54 +568,36 @@ linksRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links'),
     await setLinkTags(c.env, link.id, validated.tags);
   }
 
-  // Save geo redirects
-  if (validated.geo_redirects && validated.geo_redirects.length > 0) {
-    for (const geo of validated.geo_redirects) {
-      await upsertGeoRedirect(c.env, link.id, geo.country_code, geo.destination_url);
-    }
-  }
+  // Save all redirects
+  await saveLinkRedirects(c.env, link.id, {
+    geo_redirects: validated.geo_redirects,
+    device_redirects: validated.device_redirects,
+    city_redirects: validated.city_redirects,
+    os_redirects: validated.os_redirects,
+  });
 
-  // Save device redirects
-  if (validated.device_redirects && validated.device_redirects.length > 0) {
-    for (const device of validated.device_redirects) {
-      await upsertDeviceRedirect(c.env, link.id, device.device_type, device.destination_url);
-    }
-  }
-
-  // Build cache with redirects
-  const geoRedirects = await getGeoRedirects(c.env, link.id);
-  const deviceRedirects = await getDeviceRedirects(c.env, link.id);
-
-  const cachedLink = {
-    destination_url: link.destination_url,
-    redirect_code: link.redirect_code,
-    status: link.status,
-    expires_at: link.expires_at,
-    password_hash: link.password_hash,
-    link_id: link.id, // Include link_id in cache for tracking
-    geo_redirects:
-      geoRedirects.length > 0
-        ? Object.fromEntries(geoRedirects.map((r) => [r.country_code, r.destination_url]))
-        : undefined,
-    device_redirects:
-      deviceRedirects.length > 0
-        ? {
-          desktop: deviceRedirects.find((r) => r.device_type === 'desktop')?.destination_url,
-          mobile: deviceRedirects.find((r) => r.device_type === 'mobile')?.destination_url,
-          tablet: deviceRedirects.find((r) => r.device_type === 'tablet')?.destination_url,
-        }
-        : undefined,
-    route: link.metadata ? (() => {
-      try { return JSON.parse(link.metadata).route; } catch { return undefined; }
-    })() : undefined,
-    domain_routing_path: domain.routing_path,
-  };
-
+  // Build and set cache
+  const cachedLink = await buildCachedLink(c.env, link, domain);
   await setCachedLink(c.env, domain.domain_name, link.slug, cachedLink);
+
+  // Fetch fresh data for response
+  const [geoRedirects, deviceRedirects, cityRedirects, osRedirects] = await Promise.all([
+    getGeoRedirects(c.env, link.id),
+    getDeviceRedirects(c.env, link.id),
+    getCityRedirects(c.env, link.id),
+    getOsRedirects(c.env, link.id),
+  ]);
 
   // Get link with tags
   const tags = await getLinkTags(c.env, link.id);
-  const linkWithTags = { ...link, tags, geo_redirects: geoRedirects, device_redirects: deviceRedirects };
+  const linkWithTags = {
+    ...link,
+    tags,
+    geo_redirects: geoRedirects,
+    device_redirects: deviceRedirects,
+    city_redirects: cityRedirects,
+    os_redirects: osRedirects,
+  };
 
   return c.json({ success: true, data: linkWithTags }, 201);
 });
@@ -695,17 +703,25 @@ linksRouter.put('/:id', authOrApiKeyMiddleware, requireLinkAccess('edit'), valid
   if (validated.geo_redirects !== undefined) {
     // Clear existing and add new
     await clearAllGeoRedirects(c.env, id);
-    for (const geo of validated.geo_redirects) {
-      await upsertGeoRedirect(c.env, id, geo.country_code, geo.destination_url);
-    }
+    await saveLinkRedirects(c.env, id, { geo_redirects: validated.geo_redirects });
   }
 
   // Update device redirects if provided
   if (validated.device_redirects !== undefined) {
     await clearAllDeviceRedirects(c.env, id);
-    for (const device of validated.device_redirects) {
-      await upsertDeviceRedirect(c.env, id, device.device_type, device.destination_url);
-    }
+    await saveLinkRedirects(c.env, id, { device_redirects: validated.device_redirects });
+  }
+
+  // Update city redirects if provided
+  if (validated.city_redirects !== undefined) {
+    await clearAllCityRedirects(c.env, id);
+    await saveLinkRedirects(c.env, id, { city_redirects: validated.city_redirects });
+  }
+
+  // Update os redirects if provided
+  if (validated.os_redirects !== undefined) {
+    await clearAllOsRedirects(c.env, id);
+    await saveLinkRedirects(c.env, id, { os_redirects: validated.os_redirects });
   }
 
   // Get updated link with tags and category
@@ -720,42 +736,30 @@ linksRouter.put('/:id', authOrApiKeyMiddleware, requireLinkAccess('edit'), valid
     category = await getCategoryById(c.env, updatedLink.category_id);
   }
 
-  // Get redirects
-  const geoRedirects = await getGeoRedirects(c.env, id);
-  const deviceRedirects = await getDeviceRedirects(c.env, id);
-
-  // Rebuild cache with updated data (same structure as create)
+  // Rebuild cache with updated data
   const domain = await getDomainById(c.env, existingLink.domain_id);
   if (domain) {
-    const cachedLink = {
-      destination_url: updatedLink.destination_url,
-      redirect_code: updatedLink.redirect_code,
-      status: updatedLink.status,
-      expires_at: updatedLink.expires_at,
-      password_hash: updatedLink.password_hash,
-      link_id: updatedLink.id, // Include link_id in cache for tracking
-      geo_redirects:
-        geoRedirects.length > 0
-          ? Object.fromEntries(geoRedirects.map((r) => [r.country_code, r.destination_url]))
-          : undefined,
-      device_redirects:
-        deviceRedirects.length > 0
-          ? {
-            desktop: deviceRedirects.find((r) => r.device_type === 'desktop')?.destination_url,
-            mobile: deviceRedirects.find((r) => r.device_type === 'mobile')?.destination_url,
-            tablet: deviceRedirects.find((r) => r.device_type === 'tablet')?.destination_url,
-          }
-          : undefined,
-      route: updatedLink.metadata ? (() => {
-        try { return JSON.parse(updatedLink.metadata).route; } catch { return undefined; }
-      })() : undefined,
-      domain_routing_path: domain.routing_path,
-    };
-
+    const cachedLink = await buildCachedLink(c.env, updatedLink, domain);
     await setCachedLink(c.env, domain.domain_name, existingLink.slug, cachedLink);
   }
 
-  const linkWithTags = { ...updatedLink, tags, category, geo_redirects: geoRedirects, device_redirects: deviceRedirects };
+  // Fetch fresh data for response
+  const [geoRedirects, deviceRedirects, cityRedirects, osRedirects] = await Promise.all([
+    getGeoRedirects(c.env, id),
+    getDeviceRedirects(c.env, id),
+    getCityRedirects(c.env, id),
+    getOsRedirects(c.env, id),
+  ]);
+
+  const linkWithTags = {
+    ...updatedLink,
+    tags,
+    category,
+    geo_redirects: geoRedirects,
+    device_redirects: deviceRedirects,
+    city_redirects: cityRedirects,
+    os_redirects: osRedirects,
+  };
 
   return c.json({ success: true, data: linkWithTags });
 });
@@ -838,8 +842,8 @@ linksRouter.post('/bulk', authOrApiKeyMiddleware, requirePermission('edit_links'
     }
   } else if (action === 'update' && updates) {
     const validated = updateLinkSchema.partial().parse(updates);
-    // Extract tags, category_id, route, metadata, geo_redirects, and device_redirects (they're handled separately)
-    const { tags, category_id, route, metadata: metadataObj, geo_redirects, device_redirects, ...linkUpdates } = validated;
+    // Extract tags, category_id, route, metadata, geo_redirects, device_redirects, city_redirects, and os_redirects (they're handled separately)
+    const { tags, category_id, route, metadata: metadataObj, geo_redirects, device_redirects, city_redirects, os_redirects, ...linkUpdates } = validated;
 
     for (const id of link_ids) {
       const link = await getLinkById(c.env, id);
@@ -884,56 +888,38 @@ linksRouter.post('/bulk', authOrApiKeyMiddleware, requirePermission('edit_links'
           await setLinkTags(c.env, id, tags);
         }
 
-        // Handle geo redirects if provided
+        // Handle redirects if provided
+        const redirectsToSave: RedirectData = {};
+
         if (geo_redirects !== undefined) {
           await clearAllGeoRedirects(c.env, id);
-          for (const geo of geo_redirects) {
-            await upsertGeoRedirect(c.env, id, geo.country_code, geo.destination_url);
-          }
+          redirectsToSave.geo_redirects = geo_redirects;
         }
 
-        // Handle device redirects if provided
         if (device_redirects !== undefined) {
           await clearAllDeviceRedirects(c.env, id);
-          for (const device of device_redirects) {
-            await upsertDeviceRedirect(c.env, id, device.device_type, device.destination_url);
-          }
+          redirectsToSave.device_redirects = device_redirects;
         }
 
-        // Rebuild cache with updated data (same structure as create)
+        if (city_redirects !== undefined) {
+          await clearAllCityRedirects(c.env, id);
+          redirectsToSave.city_redirects = city_redirects;
+        }
+
+        if (os_redirects !== undefined) {
+          await clearAllOsRedirects(c.env, id);
+          redirectsToSave.os_redirects = os_redirects;
+        }
+
+        await saveLinkRedirects(c.env, id, redirectsToSave);
+
+        // Rebuild cache with updated data
         const domain = await getDomainById(c.env, link.domain_id);
         if (domain) {
           // Get updated link data
           const updatedLink = await getLinkById(c.env, id);
           if (updatedLink) {
-            const geoRedirects = await getGeoRedirects(c.env, id);
-            const deviceRedirects = await getDeviceRedirects(c.env, id);
-
-            const cachedLink = {
-              destination_url: updatedLink.destination_url,
-              redirect_code: updatedLink.redirect_code,
-              status: updatedLink.status,
-              expires_at: updatedLink.expires_at,
-              password_hash: updatedLink.password_hash,
-              link_id: updatedLink.id, // Include link_id in cache for tracking
-              geo_redirects:
-                geoRedirects.length > 0
-                  ? Object.fromEntries(geoRedirects.map((r) => [r.country_code, r.destination_url]))
-                  : undefined,
-              device_redirects:
-                deviceRedirects.length > 0
-                  ? {
-                    desktop: deviceRedirects.find((r) => r.device_type === 'desktop')?.destination_url,
-                    mobile: deviceRedirects.find((r) => r.device_type === 'mobile')?.destination_url,
-                    tablet: deviceRedirects.find((r) => r.device_type === 'tablet')?.destination_url,
-                  }
-                  : undefined,
-              route: updatedLink.metadata ? (() => {
-                try { return JSON.parse(updatedLink.metadata).route; } catch { return undefined; }
-              })() : undefined,
-              domain_routing_path: domain.routing_path,
-            };
-
+            const cachedLink = await buildCachedLink(c.env, updatedLink, domain);
             await setCachedLink(c.env, domain.domain_name, link.slug, cachedLink);
           }
         }
@@ -1029,8 +1015,10 @@ linksRouter.post('/import', authOrApiKeyMiddleware, requirePermission('create_li
     // Auto-detect geo and device redirect columns
     const geoColumns: Record<string, string> = {}; // { columnName: countryCode }
     const deviceColumns: Record<string, string> = {}; // { columnName: deviceType }
+    const osColumns: Record<string, string> = {}; // { columnName: os }
 
     const validDeviceTypes = ['desktop', 'mobile', 'tablet'];
+    const validOsTypes = ['android', 'ios'];
     const deviceSuffixes = [' url', ' link', ' page', '_url', '_link', '_page', '-url', '-link', '-page', 'url', 'link', 'page'];
 
     headers.forEach(header => {
@@ -1057,6 +1045,13 @@ linksRouter.post('/import', authOrApiKeyMiddleware, requirePermission('create_li
       // Check if it matches a device type
       if (validDeviceTypes.includes(withoutSuffix)) {
         deviceColumns[header] = withoutSuffix;
+        return;
+      }
+
+      // Check if it matches an OS type
+      if (validOsTypes.includes(withoutSuffix)) {
+        osColumns[header] = withoutSuffix;
+        return;
       }
     });
 
@@ -1082,6 +1077,8 @@ linksRouter.post('/import', authOrApiKeyMiddleware, requirePermission('create_li
       const rowData: Record<string, string> = {};
       const geoRedirectsData: Record<string, string> = {}; // { countryCode: url }
       const deviceRedirectsData: Record<string, string> = {}; // { deviceType: url }
+      const cityRedirectsData: Array<{ city: string; url: string }> = []; // [{ city: 'London', url: '...' }]
+      const osRedirectsData: Record<string, string> = {}; // { os: url }
 
       // Map CSV columns to data
       for (const [csvColumn, linkField] of Object.entries(columnMapping)) {
@@ -1101,6 +1098,24 @@ linksRouter.post('/import', authOrApiKeyMiddleware, requirePermission('create_li
               deviceRedirectsData[deviceType] = normalizeUrl(value);
             }
             continue; // Skip adding to rowData
+          }
+
+          // Check if this is a manual city redirect mapping
+          if (linkField.startsWith('city_redirect:')) {
+            const cityName = linkField.split(':')[1];
+            if (value && isValidUrl(value) && cityName) {
+              cityRedirectsData.push({ city: cityName, url: normalizeUrl(value) });
+            }
+            continue;
+          }
+
+          // Check if this is a manual os redirect mapping
+          if (linkField.startsWith('os_redirect:')) {
+            const osType = linkField.split(':')[1] as 'android' | 'ios';
+            if (value && isValidUrl(value)) {
+              osRedirectsData[osType] = normalizeUrl(value);
+            }
+            continue;
           }
 
           // Apply slug prefix filter if this is a slug field
@@ -1130,6 +1145,17 @@ linksRouter.post('/import', authOrApiKeyMiddleware, requirePermission('create_li
           const url = row[columnIndex].trim();
           if (url && isValidUrl(url)) {
             deviceRedirectsData[deviceType] = normalizeUrl(url);
+          }
+        }
+      }
+
+      // Extract OS redirect URLs from detected columns
+      for (const [columnName, osType] of Object.entries(osColumns)) {
+        const columnIndex = headers.indexOf(columnName);
+        if (columnIndex !== -1 && columnIndex < row.length) {
+          const url = row[columnIndex].trim();
+          if (url && isValidUrl(url)) {
+            osRedirectsData[osType] = normalizeUrl(url);
           }
         }
       }
@@ -1196,12 +1222,21 @@ linksRouter.post('/import', authOrApiKeyMiddleware, requirePermission('create_li
         }
       }
 
-      // Handle category_id if provided
+      // Build metadata: default the route to the domain's primary route so imported
+      // links are reachable and display correctly, plus category_id if provided.
+      const importMetadata: Record<string, unknown> = {};
+      const importRoute = getEffectiveLinkRoute(domain);
+      if (importRoute) {
+        importMetadata.route = importRoute;
+      }
       if (rowData.category_id) {
         const category = await getCategoryById(c.env, rowData.category_id);
         if (category) {
-          linkData.metadata = JSON.stringify({ category_id: rowData.category_id });
+          importMetadata.category_id = rowData.category_id;
         }
+      }
+      if (Object.keys(importMetadata).length > 0) {
+        linkData.metadata = JSON.stringify(importMetadata);
       }
 
       // Handle tags if provided (comma-separated tag names)
@@ -1231,6 +1266,29 @@ linksRouter.post('/import', authOrApiKeyMiddleware, requirePermission('create_li
         });
       }
 
+      // Build city redirects array from extracted data
+      const cityRedirects: Array<{ city_name: string; destination_url: string }> = [];
+      for (const item of cityRedirectsData) {
+        cityRedirects.push({ city_name: item.city, destination_url: item.url });
+      }
+      // Limit to 20 cities
+      if (cityRedirects.length > 20) {
+        cityRedirects.splice(20);
+      }
+
+      // Build os redirects array from extracted data
+      const osRedirects: Array<{ os: 'android' | 'ios'; destination_url: string }> = [];
+      for (const [osType, url] of Object.entries(osRedirectsData)) {
+        osRedirects.push({
+          os: osType as 'android' | 'ios',
+          destination_url: url
+        });
+      }
+      // Limit to 20 OS rules (though technically only 2 are possible right now: android, ios)
+      if (osRedirects.length > 20) {
+        osRedirects.splice(20);
+      }
+
       try {
         // Create link
         const link = await createLink(c.env, {
@@ -1245,51 +1303,18 @@ linksRouter.post('/import', authOrApiKeyMiddleware, requirePermission('create_li
           await setLinkTags(c.env, link.id, tags);
         }
 
-        // Set geo redirects if any
-        if (geoRedirects.length > 0) {
-          for (const geo of geoRedirects) {
-            await upsertGeoRedirect(c.env, link.id, geo.country_code, geo.destination_url);
-          }
-        }
-
-        // Set device redirects if any
-        if (deviceRedirects.length > 0) {
-          for (const device of deviceRedirects) {
-            await upsertDeviceRedirect(c.env, link.id, device.device_type, device.destination_url);
-          }
-        }
+        // Save all redirects
+        await saveLinkRedirects(c.env, link.id, {
+          geo_redirects: geoRedirects,
+          device_redirects: deviceRedirects,
+          city_redirects: cityRedirects,
+          os_redirects: osRedirects,
+        });
 
         // Build and cache link with redirects
         const domain = await getDomainById(c.env, domainId);
         if (domain) {
-          const cachedGeoRedirects = await getGeoRedirects(c.env, link.id);
-          const cachedDeviceRedirects = await getDeviceRedirects(c.env, link.id);
-
-          const cachedLink = {
-            destination_url: link.destination_url,
-            redirect_code: link.redirect_code,
-            status: link.status,
-            expires_at: link.expires_at,
-            password_hash: link.password_hash,
-            link_id: link.id, // Include link_id in cache for tracking
-            geo_redirects:
-              cachedGeoRedirects.length > 0
-                ? Object.fromEntries(cachedGeoRedirects.map((r) => [r.country_code, r.destination_url]))
-                : undefined,
-            device_redirects:
-              cachedDeviceRedirects.length > 0
-                ? {
-                  desktop: cachedDeviceRedirects.find((r) => r.device_type === 'desktop')?.destination_url,
-                  mobile: cachedDeviceRedirects.find((r) => r.device_type === 'mobile')?.destination_url,
-                  tablet: cachedDeviceRedirects.find((r) => r.device_type === 'tablet')?.destination_url,
-                }
-                : undefined,
-            route: link.metadata ? (() => {
-              try { return JSON.parse(link.metadata).route; } catch { return undefined; }
-            })() : undefined,
-            domain_routing_path: domain.routing_path,
-          };
-
+          const cachedLink = await buildCachedLink(c.env, link, domain);
           await setCachedLink(c.env, domain.domain_name, link.slug, cachedLink);
         }
 

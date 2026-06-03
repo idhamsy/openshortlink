@@ -10,7 +10,7 @@
 import type { Env, Link, CachedLink, Domain } from '../types';
 import { getCachedLink, setCachedLink } from './cache';
 import { getLinkBySlug, incrementClickCount } from '../db/links';
-import { getGeoRedirects, getDeviceRedirects } from '../db/linkRedirects';
+import { getGeoRedirects, getDeviceRedirects, getCityRedirects, getOsRedirects, type LinkGeoRedirect, type LinkDeviceRedirect, type LinkCityRedirect, type LinkOsRedirect } from '../db/linkRedirects';
 import { trackClick, parseUserAgent, extractUtmParams, hashIpAddress, formatDateForGrouping, extractReferrerDomain } from './analytics';
 
 /**
@@ -103,34 +103,21 @@ export async function handleRedirect(
       return new Response('Link is not available', { status: 403 });
     }
 
-    // For stale cache refresh, only fetch redirects if not already in cache
-    let geoRedirects: any[] = [];
-    let deviceRedirects: any[] = [];
-    
-    if (needsCacheRefresh && cached) {
-      // Patch mode: keep existing redirect data if present
-      if (cached.geo_redirects) {
-        // Convert object back to array for consistency
-        geoRedirects = Object.entries(cached.geo_redirects).map(([country_code, destination_url]) => ({
-          country_code,
-          destination_url
-        }));
-      }
-      if (cached.device_redirects) {
-        deviceRedirects = [
-          cached.device_redirects.desktop && { device_type: 'desktop', destination_url: cached.device_redirects.desktop },
-          cached.device_redirects.mobile && { device_type: 'mobile', destination_url: cached.device_redirects.mobile },
-          cached.device_redirects.tablet && { device_type: 'tablet', destination_url: cached.device_redirects.tablet },
-        ].filter(Boolean) as any[];
-      }
-      // DEBUG: console.log('[REDIRECT] Patching stale cache - reusing existing redirect data');
-    } else {
-      // Full refresh: fetch from DB
-      [geoRedirects, deviceRedirects] = await Promise.all([
-        getGeoRedirects(env, link.id),
-        getDeviceRedirects(env, link.id)
-      ]);
-    }
+    // Always fetch all redirect rules from the DB on a (re)build. We deliberately
+    // do NOT reuse redirect data from a stale cache entry: an older entry may
+    // predate the city/os redirect feature and would silently drop those rules,
+    // serving the wrong destination. A stale rebuild is rare (once per old entry,
+    // then rewritten fresh), so the extra reads are negligible.
+    let geoRedirects: LinkGeoRedirect[];
+    let deviceRedirects: LinkDeviceRedirect[];
+    let cityRedirects: LinkCityRedirect[];
+    let osRedirects: LinkOsRedirect[];
+    [geoRedirects, deviceRedirects, cityRedirects, osRedirects] = await Promise.all([
+      getGeoRedirects(env, link.id),
+      getDeviceRedirects(env, link.id),
+      getCityRedirects(env, link.id),
+      getOsRedirects(env, link.id)
+    ]);
 
     // Build complete cache object (with all required fields)
     // Ensure link_id is always set (validated above, but double-check for safety)
@@ -149,14 +136,25 @@ export async function handleRedirect(
       link_id: linkId, // Always include link_id (validated above)
       geo_redirects:
         geoRedirects.length > 0
-          ? Object.fromEntries(geoRedirects.map((r: any) => [r.country_code, r.destination_url]))
+          ? Object.fromEntries(geoRedirects.map((r) => [r.country_code, r.destination_url]))
           : undefined,
       device_redirects:
         deviceRedirects.length > 0
           ? {
-            desktop: deviceRedirects.find((r: any) => r.device_type === 'desktop')?.destination_url,
-            mobile: deviceRedirects.find((r: any) => r.device_type === 'mobile')?.destination_url,
-            tablet: deviceRedirects.find((r: any) => r.device_type === 'tablet')?.destination_url,
+            desktop: deviceRedirects.find((r) => r.device_type === 'desktop')?.destination_url,
+            mobile: deviceRedirects.find((r) => r.device_type === 'mobile')?.destination_url,
+            tablet: deviceRedirects.find((r) => r.device_type === 'tablet')?.destination_url,
+          }
+          : undefined,
+      city_redirects:
+        cityRedirects.length > 0
+          ? cityRedirects.map((r) => ({ city_name: r.city_name, destination_url: r.destination_url }))
+          : undefined,
+      os_redirects:
+        osRedirects.length > 0
+          ? {
+            android: osRedirects.find((r) => r.os === 'android')?.destination_url,
+            ios: osRedirects.find((r) => r.os === 'ios')?.destination_url,
           }
           : undefined,
       route: link.metadata ? (() => {
@@ -279,8 +277,9 @@ export async function handleRedirect(
   };
 
   // Add Vary header if geo/device redirects exist (different users get different destinations)
-  if (cached.geo_redirects || cached.device_redirects) {
-    headers['Vary'] = 'Accept-Language, CF-IPCountry, User-Agent';
+  const varyHeader = buildVaryHeader(cached);
+  if (varyHeader) {
+    headers['Vary'] = varyHeader;
   }
 
   return new Response(null, {
@@ -290,28 +289,80 @@ export async function handleRedirect(
 }
 
 /**
- * Resolves the destination URL based on geo and device redirects.
- * Priority: Geo redirect > Device redirect > Default URL
+ * Extracts geo (country/city) for the visitor from the request.
+ *
+ * `request.cf` is populated by Cloudflare by default; the `cf-*` headers require
+ * the "visitor location headers" Managed Transform, so we fall back to them.
+ * Returns raw values (no case normalization) so analytics keeps original casing;
+ * callers that match against rules normalize as needed.
  */
-function resolveDestinationUrl(cached: CachedLink, request: Request): string {
-  // Extract country from Cloudflare headers
-  const country = (request.headers.get('cf-ipcountry') || '').toUpperCase();
+export function extractGeoFromRequest(request: Request): { country: string; city: string } {
+  const cf = (request as { cf?: { city?: string; country?: string } }).cf;
+  const country = cf?.country || request.headers.get('cf-ipcountry') || '';
+  const city = cf?.city || request.headers.get('cf-ipcity') || '';
+  return { country, city };
+}
 
-  // Extract device type from user-agent
+/**
+ * Builds the Vary header value for a cached link, or undefined when no
+ * location/device-dependent redirects exist. City redirects additionally
+ * vary on CF-IPCity so cities don't share each other's cached destination.
+ */
+export function buildVaryHeader(cached: CachedLink): string | undefined {
+  if (!(cached.geo_redirects || cached.device_redirects || cached.city_redirects || cached.os_redirects)) {
+    return undefined;
+  }
+  const varyValues = ['Accept-Language', 'CF-IPCountry', 'User-Agent'];
+  if (cached.city_redirects) {
+    varyValues.push('CF-IPCity');
+  }
+  return varyValues.join(', ');
+}
+
+/**
+ * Resolves the destination URL based on geo and device redirects.
+ * Priority: City > Country > OS > Device > Default URL
+ */
+export function resolveDestinationUrl(cached: CachedLink, request: Request): string {
+  const geo = extractGeoFromRequest(request);
+  const country = geo.country.toUpperCase();
+  const city = geo.city.toLowerCase();
+
+  // Extract device type and OS from user-agent
   const userAgent = request.headers.get('user-agent') || '';
-  const { device_type } = parseUserAgent(userAgent);
+  const { device_type, os } = parseUserAgent(userAgent);
 
-  // Priority 1: Geo redirect
+  // Priority 1: City redirect (exact match, case-insensitive)
+  if (cached.city_redirects && city) {
+    for (const rule of cached.city_redirects) {
+      if (city === rule.city_name.toLowerCase()) {
+        return rule.destination_url;
+      }
+    }
+  }
+
+  // Priority 2: Geo (Country) redirect
   if (cached.geo_redirects && country && cached.geo_redirects[country]) {
     return cached.geo_redirects[country];
   }
 
-  // Priority 2: Device redirect
+  // Priority 3: OS redirect
+  // Map detected OS to 'android' or 'ios' keys
+  if (cached.os_redirects) {
+    if (os === 'android' && cached.os_redirects.android) {
+      return cached.os_redirects.android;
+    }
+    if (os === 'ios' && cached.os_redirects.ios) {
+      return cached.os_redirects.ios;
+    }
+  }
+
+  // Priority 4: Device redirect
   if (cached.device_redirects && cached.device_redirects[device_type]) {
     return cached.device_redirects[device_type];
   }
 
-  // Priority 3: Default URL
+  // Priority 5: Default URL
   return cached.destination_url;
 }
 
@@ -330,8 +381,9 @@ async function trackClickAsync(
     const url = new URL(request.url);
     const userAgent = request.headers.get('user-agent') || '';
     const referrer = request.headers.get('referer') || request.headers.get('referrer') || '';
-    const cfCountry = request.headers.get('cf-ipcountry') || 'unknown';
-    const cfCity = request.headers.get('cf-ipcity') || 'unknown';
+    const geo = extractGeoFromRequest(request);
+    const cfCountry = geo.country || 'unknown';
+    const cfCity = geo.city || 'unknown';
     const ipAddress = request.headers.get('cf-connecting-ip') || 'unknown';
 
     const { device_type, browser, os } = parseUserAgent(userAgent);
