@@ -12567,7 +12567,26 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           showToast('Destination URL must be mapped from a CSV column', 'error');
           return;
         }
-        
+
+        // Validate City Redirect mappings: a column set to "City Redirect" must have a
+        // city name, otherwise the mapping is silently dropped. Block import with feedback.
+        const blankCityCols = csvData.headers.filter(h => {
+          const sel = document.getElementById('mapping-' + escapeAttr(h));
+          if (!sel || sel.value !== 'city_redirect') return false;
+          const ci = document.getElementById('city-input-' + escapeAttr(h));
+          return !(ci && ci.value.trim());
+        });
+        if (blankCityCols.length > 0) {
+          showToast('Enter a city name for the City Redirect column(s): ' + blankCityCols.join(', '), 'error');
+          return;
+        }
+        // Enforce the backend's per-link limit of 20 city redirects.
+        const cityCount = Object.values(columnMapping).filter(v => typeof v === 'string' && v.startsWith('city_redirect:')).length;
+        if (cityCount > 20) {
+          showToast('Too many City Redirect columns (' + cityCount + '). Maximum is 20.', 'error');
+          return;
+        }
+
         try {
           setLoading('import-csv-form', true);
           submitBtn.disabled = true;
