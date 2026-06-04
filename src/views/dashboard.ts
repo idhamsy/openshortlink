@@ -12098,6 +12098,9 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         { value: 'device_redirect:mobile', label: '📱 Mobile Redirect', required: false },
         { value: 'device_redirect:desktop', label: '💻 Desktop Redirect', required: false },
         { value: 'device_redirect:tablet', label: '📲 Tablet Redirect', required: false },
+        { value: 'os_redirect:android', label: '🤖 Android (OS) Redirect', required: false },
+        { value: 'os_redirect:ios', label: '🍎 iOS (OS) Redirect', required: false },
+        { value: 'city_redirect', label: '📍 City Redirect (enter city name)', required: false },
       ];
       
       // Auto-detect geo and device redirect columns
@@ -12213,9 +12216,37 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         });
         prefixDiv.appendChild(prefixInput);
         mappingDiv.appendChild(prefixDiv);
-        
-        // Show/hide prefix input when slug is selected
+
+        // City name input — shown when this column is mapped to a City Redirect.
+        // The city name is needed because city redirects are open-ended (not a fixed set).
+        const cityDiv = document.createElement('div');
+        cityDiv.id = 'city-' + escapeAttr(csvHeader);
+        cityDiv.style.cssText = 'display: none; margin-top: 0.25rem;';
+        const cityLabel = document.createElement('label');
+        cityLabel.textContent = 'City name (must match Cloudflare GeoIP, e.g. "Jakarta")';
+        cityLabel.style.fontSize = '0.875rem';
+        cityLabel.style.color = '#666';
+        cityDiv.appendChild(cityLabel);
+        const cityInput = document.createElement('input');
+        cityInput.type = 'text';
+        cityInput.placeholder = 'Enter city name (e.g., Jakarta)';
+        cityInput.style.cssText = 'width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; font-size: 0.875rem; margin-top: 0.25rem;';
+        cityInput.id = 'city-input-' + escapeAttr(csvHeader);
+        cityInput.addEventListener('input', () => {
+          updateColumnMapping();
+          if (csvData) {
+            generatePreview(csvData);
+          }
+        });
+        cityDiv.appendChild(cityInput);
+        mappingDiv.appendChild(cityDiv);
+
+        // Show/hide prefix input (slug) and city input (city redirect)
         select.addEventListener('change', () => {
+          cityDiv.style.display = select.value === 'city_redirect' ? 'block' : 'none';
+          if (select.value !== 'city_redirect') {
+            cityInput.value = '';
+          }
           if (select.value === 'slug') {
             prefixDiv.style.display = 'block';
           } else {
@@ -12324,8 +12355,19 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       csvData.headers.forEach(csvHeader => {
         const select = document.getElementById('mapping-' + escapeAttr(csvHeader));
         if (select && select.value) {
-          columnMapping[csvHeader] = select.value;
-          
+          // City redirects carry a city name: emit "city_redirect:<name>" so the
+          // backend (import.ts) knows which city this column maps to. Skip if no
+          // name entered yet.
+          if (select.value === 'city_redirect') {
+            const cityInput = document.getElementById('city-input-' + escapeAttr(csvHeader));
+            const cityName = cityInput && cityInput.value.trim();
+            if (cityName) {
+              columnMapping[csvHeader] = 'city_redirect:' + cityName;
+            }
+          } else {
+            columnMapping[csvHeader] = select.value;
+          }
+
           // Store prefix filter if slug is mapped
           if (select.value === 'slug') {
             const prefixInput = document.getElementById('prefix-input-' + escapeAttr(csvHeader));

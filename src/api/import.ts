@@ -237,6 +237,8 @@ importRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links')
                             cityName = mappedType.substring(mappedType.indexOf(':') + 1);
                         } else if (mappedType.startsWith('os:') || mappedType.startsWith('os_redirect:')) {
                             osType = mappedType.substring(mappedType.indexOf(':') + 1).toLowerCase();
+                        } else if (mappedType.startsWith('device_redirect:')) {
+                            deviceType = mappedType.substring('device_redirect:'.length);
                         } else if (mappedType === 'mobile') {
                             deviceType = 'mobile';
                         } else if (mappedType === 'desktop') {
@@ -266,8 +268,8 @@ importRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links')
 
                     if (countryCode && isValidUrl(value as string)) {
                         await upsertGeoRedirect(c.env, link.id, countryCode, value as string);
-                    } else if (deviceType && isValidUrl(value as string)) {
-                        await upsertDeviceRedirect(c.env, link.id, deviceType as 'mobile' | 'desktop' | 'tablet', value as string);
+                    } else if ((deviceType === 'mobile' || deviceType === 'desktop' || deviceType === 'tablet') && isValidUrl(value as string)) {
+                        await upsertDeviceRedirect(c.env, link.id, deviceType, value as string);
                     } else if (cityName && isValidUrl(value as string)) {
                         await upsertCityRedirect(c.env, link.id, cityName, value as string);
                     } else if ((osType === 'android' || osType === 'ios') && isValidUrl(value as string)) {
