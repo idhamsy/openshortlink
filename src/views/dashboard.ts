@@ -12801,7 +12801,7 @@ function constructShortUrl(domain, slug, route) {
   // Construct URL based on route
   let urlPath = '/' + slug;
   if (route && route.includes('*')) {
-    urlPath = route.replace('*', slug);
+    urlPath = route.split('*').join(slug);
     // Ensure it starts with /
     if (!urlPath.startsWith('/')) urlPath = '/' + urlPath;
   } else if (route) {

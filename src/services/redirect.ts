@@ -266,9 +266,16 @@ export async function handleRedirect(
   // 302/307 are temporary → cache short (1 hour)
   const isPermanent = redirectCode === 301 || redirectCode === 308;
   const cacheMaxAge = isPermanent ? 31536000 : 3600; // 1 year for permanent, 1 hour for temporary
+  // Geo (country) and city redirects are resolved from request.cf, which cannot
+  // participate in a Vary header — so a shared cache could replay one visitor's
+  // geo-specific destination to visitors elsewhere. Mark those responses `private`
+  // (browser-only). Device/OS redirects vary on User-Agent (which IS Vary-able),
+  // so they can safely remain `public`.
+  const geoVariant = !!(cached.geo_redirects || cached.city_redirects);
+  const cacheScope = geoVariant ? 'private' : 'public';
   const cacheControl = isPermanent
-    ? `public, max-age=${cacheMaxAge}, immutable`
-    : `public, max-age=${cacheMaxAge}`;
+    ? `${cacheScope}, max-age=${cacheMaxAge}, immutable`
+    : `${cacheScope}, max-age=${cacheMaxAge}`;
 
   // Build headers
   const headers: HeadersInit = {

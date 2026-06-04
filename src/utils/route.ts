@@ -46,7 +46,9 @@ export function buildShortUrlPath(route: string | undefined, slug: string): stri
   if (!slug) return '';
   let urlPath = '/' + slug;
   if (route && route.includes('*')) {
-    urlPath = route.replace('*', slug);
+    // split/join substitutes the slug literally (String.replace would interpret
+    // $-sequences in the slug) and replaces every wildcard, not just the first.
+    urlPath = route.split('*').join(slug);
     if (!urlPath.startsWith('/')) urlPath = '/' + urlPath;
   } else if (route) {
     urlPath = route.endsWith('/') ? route + slug : route + '/' + slug;

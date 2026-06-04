@@ -934,6 +934,11 @@ linksRouter.post('/bulk', authOrApiKeyMiddleware, requirePermission('edit_links'
 });
 
 // Import links from CSV
+// NOTE: This route is SHADOWED and never executed. `importRouter` (src/api/import.ts)
+// is mounted at `/api/v1/links/import` and `/dashboard/api/v1/links/import` BEFORE
+// `linksRouter` in src/index.ts, so all CSV imports go through importRouter. This
+// handler is kept temporarily for reference and should be removed in a dedicated
+// cleanup. Make functional changes in src/api/import.ts, not here.
 linksRouter.post('/import', authOrApiKeyMiddleware, requirePermission('create_links'), async (c) => {
   try {
     const formData = await c.req.formData();
