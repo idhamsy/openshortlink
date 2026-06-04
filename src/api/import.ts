@@ -142,13 +142,16 @@ importRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links')
                 }
                 const effectiveRoute = getEffectiveLinkRoute(domain, route);
 
-                // Validate category if provided (stored in the dedicated column for joins/filters)
+                // Validate category if provided (stored in the dedicated column for joins/filters).
+                // Fail the row on an unknown category — same as POST /links and PUT /:id, so we
+                // don't silently drop the assignment while reporting success.
                 let validCategoryId: string | undefined = undefined;
                 if (categoryId) {
                     const category = await getCategoryById(c.env, categoryId);
-                    if (category) {
-                        validCategoryId = categoryId;
+                    if (!category) {
+                        throw new Error(`Category not found: ${categoryId}`);
                     }
+                    validCategoryId = categoryId;
                 }
 
                 // Generate or validate slug
