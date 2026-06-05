@@ -918,7 +918,62 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             <input type="url" id="device-tablet-url" placeholder="https://example.com/tablet">
           </div>
         </div>
-        
+
+        <!-- City Redirects Section -->
+        <div class="form-group">
+          <label>
+            <input type="checkbox" id="city-redirect-enabled">
+            Enable City-Specific Redirects
+          </label>
+          <small style="display: block; margin-top: 0.25rem; color: #666;">
+            Redirect users to different URLs based on their city (max 20 cities)
+          </small>
+        </div>
+        <div id="city-redirects-section" style="display: none; margin-top: 1rem; background: #f8f9fa; padding: 1rem; border-radius: 4px;">
+          <h4 style="margin: 0 0 0.5rem 0;">City-Specific Redirects</h4>
+          <p style="margin: 0 0 0.75rem 0; font-size: 0.875rem; color: #666;">
+            Users from specified cities will be redirected to their specific URL. City names must match exactly (case-insensitive).
+          </p>
+          <div style="background: #fff8e1; border: 1px solid #ffe082; border-radius: 4px; padding: 0.65rem 0.85rem; margin-bottom: 0.85rem; font-size: 0.8rem; color: #5f4c00; line-height: 1.5;">
+            <strong>⚠ City names must match Cloudflare's GeoIP format exactly.</strong><br>
+            Use full English names — not abbreviations or local names (e.g. <code>Kuala Lumpur</code> not <code>KL</code>, <code>Surakarta</code> not <code>Solo</code>).<br>
+            Not sure what name Cloudflare uses for your city?
+            <a href="/api/v1/debug/my-location" target="_blank" rel="noopener" style="color: #b45309; font-weight: 600;">Check your detected city ↗</a>
+            &nbsp;·&nbsp;
+            <a href="https://developers.cloudflare.com/fundamentals/reference/http-request-headers/#cf-ipcity" target="_blank" rel="noopener" style="color: #b45309;">Cloudflare docs ↗</a>
+          </div>
+          <div id="city-redirects-list"></div>
+          <button type="button" id="add-city-redirect" class="btn btn-secondary" style="margin-top: 0.5rem;">
+            + Add City
+          </button>
+          <small id="city-count" style="display: block; margin-top: 0.5rem; color: #666;">0 / 20 cities</small>
+        </div>
+
+        <!-- OS Redirects Section -->
+        <div class="form-group">
+          <label>
+            <input type="checkbox" id="os-redirect-enabled">
+            Enable OS-Specific Redirects
+          </label>
+          <small style="display: block; margin-top: 0.25rem; color: #666;">
+            Redirect users to different URLs based on their operating system (Android / iOS)
+          </small>
+        </div>
+        <div id="os-redirects-section" style="display: none; margin-top: 1rem; background: #f8f9fa; padding: 1rem; border-radius: 4px;">
+          <h4 style="margin: 0 0 0.5rem 0;">OS-Specific Redirects</h4>
+          <p style="margin: 0 0 1rem 0; font-size: 0.875rem; color: #666;">
+            Users on selected operating systems will be redirected to their specific URL. Leave empty to use default URL.
+          </p>
+          <div class="form-group">
+            <label for="os-android-url">Android URL (optional)</label>
+            <input type="url" id="os-android-url" placeholder="https://play.google.com/store/apps/...">
+          </div>
+          <div class="form-group">
+            <label for="os-ios-url">iOS URL (optional)</label>
+            <input type="url" id="os-ios-url" placeholder="https://apps.apple.com/app/...">
+          </div>
+        </div>
+
         <button type="submit" id="submit-link-btn" class="btn btn-primary">Create Link</button>
       </form>
     </div>
@@ -1704,7 +1759,9 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             const linkIdEscaped = escapeAttr(link.id);
             const categoryDisplay = category || '<span style="color: #999;">No category</span>';
             
-            // Extract route from metadata
+            // Extract route from metadata; fall back to the domain's routing_path
+            // so legacy/API-created links without a stored route still display
+            // (and link to) the correct path instead of a bare slug.
             let route = '';
             try {
               if (link.metadata) {
@@ -1712,7 +1769,10 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
                 route = meta.route || '';
               }
             } catch (e) {}
-            
+            if (!route) {
+              route = link.routing_path || '';
+            }
+
             // Construct short URL
             const shortUrl = constructShortUrl(link.domain_name, link.slug, route);
             
@@ -2063,7 +2123,23 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             formData.device_redirects = deviceRedirects;
           }
         }
-        
+
+        // Include city redirects if enabled
+        if (document.getElementById('city-redirect-enabled')?.checked) {
+          const cityRedirects = getCityRedirects();
+          if (cityRedirects.length > 0) {
+            formData.city_redirects = cityRedirects;
+          }
+        }
+
+        // Include OS redirects if enabled
+        if (document.getElementById('os-redirect-enabled')?.checked) {
+          const osRedirects = getOsRedirects();
+          if (osRedirects.length > 0) {
+            formData.os_redirects = osRedirects;
+          }
+        }
+
         await apiRequest('/links', { method: 'POST', body: JSON.stringify(formData) });
         document.getElementById('create-link-modal').classList.remove('active');
         form.reset();
@@ -2073,10 +2149,16 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         // Reset redirect sections
         document.getElementById('geo-redirect-enabled').checked = false;
         document.getElementById('device-redirect-enabled').checked = false;
+        document.getElementById('city-redirect-enabled').checked = false;
+        document.getElementById('os-redirect-enabled').checked = false;
         document.getElementById('geo-redirects-section').style.display = 'none';
         document.getElementById('device-redirects-section').style.display = 'none';
+        document.getElementById('city-redirects-section').style.display = 'none';
+        document.getElementById('os-redirects-section').style.display = 'none';
         setGeoRedirects([]);
         setDeviceRedirects([]);
+        setCityRedirects([]);
+        setOsRedirects([]);
         
         await loadLinks();
         showToast('Link created successfully!', 'success');
@@ -2171,7 +2253,29 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           document.getElementById('device-redirects-section').style.display = 'none';
           setDeviceRedirects([]);
         }
-        
+
+        // Set city redirects if they exist
+        if (link.data.city_redirects && link.data.city_redirects.length > 0) {
+          document.getElementById('city-redirect-enabled').checked = true;
+          document.getElementById('city-redirects-section').style.display = 'block';
+          setCityRedirects(link.data.city_redirects);
+        } else {
+          document.getElementById('city-redirect-enabled').checked = false;
+          document.getElementById('city-redirects-section').style.display = 'none';
+          setCityRedirects([]);
+        }
+
+        // Set OS redirects if they exist
+        if (link.data.os_redirects && link.data.os_redirects.length > 0) {
+          document.getElementById('os-redirect-enabled').checked = true;
+          document.getElementById('os-redirects-section').style.display = 'block';
+          setOsRedirects(link.data.os_redirects);
+        } else {
+          document.getElementById('os-redirect-enabled').checked = false;
+          document.getElementById('os-redirects-section').style.display = 'none';
+          setOsRedirects([]);
+        }
+
         modal.classList.add('active');
         
         // Update form submit handler for edit mode
@@ -2207,7 +2311,21 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             } else {
               formData.device_redirects = [];
             }
-            
+
+            // Include city redirects (always include to handle clearing)
+            if (document.getElementById('city-redirect-enabled')?.checked) {
+              formData.city_redirects = getCityRedirects();
+            } else {
+              formData.city_redirects = [];
+            }
+
+            // Include OS redirects (always include to handle clearing)
+            if (document.getElementById('os-redirect-enabled')?.checked) {
+              formData.os_redirects = getOsRedirects();
+            } else {
+              formData.os_redirects = [];
+            }
+
             await apiRequest('/links/' + linkId, { method: 'PUT', body: JSON.stringify(formData) });
             modal.classList.remove('active');
             // Reset modal state after successful edit
@@ -2454,6 +2572,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
     
     // Geo and Device redirects management
     let geoRedirectCount = 0;
+    let cityRedirectCount = 0;
     
     // Country list (ISO 3166-1 alpha-2 codes)
     const countries = [
@@ -2519,7 +2638,23 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         section.style.display = e.target.checked ? 'block' : 'none';
       }
     });
-    
+
+    // Toggle city redirects section
+    document.getElementById('city-redirect-enabled')?.addEventListener('change', (e) => {
+      const section = document.getElementById('city-redirects-section');
+      if (section) {
+        section.style.display = e.target.checked ? 'block' : 'none';
+      }
+    });
+
+    // Toggle OS redirects section
+    document.getElementById('os-redirect-enabled')?.addEventListener('change', (e) => {
+      const section = document.getElementById('os-redirects-section');
+      if (section) {
+        section.style.display = e.target.checked ? 'block' : 'none';
+      }
+    });
+
     // Add geo redirect
     document.getElementById('add-geo-redirect')?.addEventListener('click', () => {
       const list = document.getElementById('geo-redirects-list');
@@ -2559,7 +2694,46 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         e.target.closest('.geo-redirect-item')?.remove();
         updateGeoCount();
       }
+      if (e.target.classList.contains('remove-city')) {
+        e.target.closest('.city-redirect-item')?.remove();
+        updateCityCount();
+      }
     });
+
+    // Add city redirect
+    document.getElementById('add-city-redirect')?.addEventListener('click', () => {
+      const list = document.getElementById('city-redirects-list');
+      if (!list) return;
+
+      const currentCount = list.children.length;
+      if (currentCount >= 20) {
+        showToast('Maximum 20 cities allowed', 'error');
+        return;
+      }
+
+      const index = cityRedirectCount++;
+      const div = document.createElement('div');
+      div.className = 'city-redirect-item';
+      div.setAttribute('data-index', index);
+      div.style.cssText = 'display: flex; gap: 0.5rem; margin-bottom: 0.5rem; align-items: center;';
+
+      div.innerHTML =
+        '<input type="text" class="city-name" placeholder="City name (e.g. London)" style="flex: 0 0 180px;" required>' +
+        '<input type="url" class="city-url" placeholder="https://example.com/city" style="flex: 1;" required>' +
+        '<button type="button" class="btn btn-secondary remove-city" style="padding: 0.5rem 0.75rem;">✕</button>';
+
+      list.appendChild(div);
+      updateCityCount();
+    });
+
+    function updateCityCount() {
+      const list = document.getElementById('city-redirects-list');
+      const count = list ? list.children.length : 0;
+      const countEl = document.getElementById('city-count');
+      if (countEl) {
+        countEl.textContent = count + ' / 20 cities';
+      }
+    }
     
     function updateGeoCount() {
       const list = document.getElementById('geo-redirects-list');
@@ -2635,11 +2809,11 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       const desktopInput = document.getElementById('device-desktop-url');
       const mobileInput = document.getElementById('device-mobile-url');
       const tabletInput = document.getElementById('device-tablet-url');
-      
+
       if (desktopInput) desktopInput.value = '';
       if (mobileInput) mobileInput.value = '';
       if (tabletInput) tabletInput.value = '';
-      
+
       // Set new values
       if (redirects && redirects.length > 0) {
         redirects.forEach(redirect => {
@@ -2653,7 +2827,81 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         });
       }
     }
-    
+
+    function getCityRedirects() {
+      const list = document.getElementById('city-redirects-list');
+      if (!list) return [];
+
+      const redirects = [];
+      const items = list.querySelectorAll('.city-redirect-item');
+      items.forEach(item => {
+        const city = item.querySelector('.city-name')?.value?.trim();
+        const url = item.querySelector('.city-url')?.value;
+        if (city && url) {
+          redirects.push({ city_name: city, destination_url: url });
+        }
+      });
+      return redirects;
+    }
+
+    function setCityRedirects(redirects) {
+      const list = document.getElementById('city-redirects-list');
+      if (!list) return;
+
+      // Clear existing
+      list.innerHTML = '';
+      cityRedirectCount = 0;
+
+      // Add each redirect
+      if (redirects && redirects.length > 0) {
+        redirects.forEach(redirect => {
+          const addBtn = document.getElementById('add-city-redirect');
+          if (addBtn) {
+            addBtn.click();
+
+            const items = list.querySelectorAll('.city-redirect-item');
+            const lastItem = items[items.length - 1];
+            if (lastItem) {
+              const cityInput = lastItem.querySelector('.city-name');
+              const urlInput = lastItem.querySelector('.city-url');
+              if (cityInput) cityInput.value = redirect.city_name;
+              if (urlInput) urlInput.value = redirect.destination_url;
+            }
+          }
+        });
+      }
+      updateCityCount();
+    }
+
+    function getOsRedirects() {
+      const redirects = [];
+      const android = document.getElementById('os-android-url')?.value;
+      const ios = document.getElementById('os-ios-url')?.value;
+
+      if (android) redirects.push({ os: 'android', destination_url: android });
+      if (ios) redirects.push({ os: 'ios', destination_url: ios });
+
+      return redirects;
+    }
+
+    function setOsRedirects(redirects) {
+      const androidInput = document.getElementById('os-android-url');
+      const iosInput = document.getElementById('os-ios-url');
+
+      if (androidInput) androidInput.value = '';
+      if (iosInput) iosInput.value = '';
+
+      if (redirects && redirects.length > 0) {
+        redirects.forEach(redirect => {
+          if (redirect.os === 'android' && androidInput) {
+            androidInput.value = redirect.destination_url;
+          } else if (redirect.os === 'ios' && iosInput) {
+            iosInput.value = redirect.destination_url;
+          }
+        });
+      }
+    }
+
     async function loadTags() {
       try {
         const domainId = document.getElementById('domain-selector')?.value;
@@ -11850,6 +12098,9 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         { value: 'device_redirect:mobile', label: '📱 Mobile Redirect', required: false },
         { value: 'device_redirect:desktop', label: '💻 Desktop Redirect', required: false },
         { value: 'device_redirect:tablet', label: '📲 Tablet Redirect', required: false },
+        { value: 'os_redirect:android', label: '🤖 Android (OS) Redirect', required: false },
+        { value: 'os_redirect:ios', label: '🍎 iOS (OS) Redirect', required: false },
+        { value: 'city_redirect', label: '📍 City Redirect (enter city name)', required: false },
       ];
       
       // Auto-detect geo and device redirect columns
@@ -11965,9 +12216,37 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         });
         prefixDiv.appendChild(prefixInput);
         mappingDiv.appendChild(prefixDiv);
-        
-        // Show/hide prefix input when slug is selected
+
+        // City name input — shown when this column is mapped to a City Redirect.
+        // The city name is needed because city redirects are open-ended (not a fixed set).
+        const cityDiv = document.createElement('div');
+        cityDiv.id = 'city-' + escapeAttr(csvHeader);
+        cityDiv.style.cssText = 'display: none; margin-top: 0.25rem;';
+        const cityLabel = document.createElement('label');
+        cityLabel.textContent = 'City name (must match Cloudflare GeoIP, e.g. "Jakarta")';
+        cityLabel.style.fontSize = '0.875rem';
+        cityLabel.style.color = '#666';
+        cityDiv.appendChild(cityLabel);
+        const cityInput = document.createElement('input');
+        cityInput.type = 'text';
+        cityInput.placeholder = 'Enter city name (e.g., Jakarta)';
+        cityInput.style.cssText = 'width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; font-size: 0.875rem; margin-top: 0.25rem;';
+        cityInput.id = 'city-input-' + escapeAttr(csvHeader);
+        cityInput.addEventListener('input', () => {
+          updateColumnMapping();
+          if (csvData) {
+            generatePreview(csvData);
+          }
+        });
+        cityDiv.appendChild(cityInput);
+        mappingDiv.appendChild(cityDiv);
+
+        // Show/hide prefix input (slug) and city input (city redirect)
         select.addEventListener('change', () => {
+          cityDiv.style.display = select.value === 'city_redirect' ? 'block' : 'none';
+          if (select.value !== 'city_redirect') {
+            cityInput.value = '';
+          }
           if (select.value === 'slug') {
             prefixDiv.style.display = 'block';
           } else {
@@ -12076,8 +12355,19 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       csvData.headers.forEach(csvHeader => {
         const select = document.getElementById('mapping-' + escapeAttr(csvHeader));
         if (select && select.value) {
-          columnMapping[csvHeader] = select.value;
-          
+          // City redirects carry a city name: emit "city_redirect:<name>" so the
+          // backend (import.ts) knows which city this column maps to. Skip if no
+          // name entered yet.
+          if (select.value === 'city_redirect') {
+            const cityInput = document.getElementById('city-input-' + escapeAttr(csvHeader));
+            const cityName = cityInput && cityInput.value.trim();
+            if (cityName) {
+              columnMapping[csvHeader] = 'city_redirect:' + cityName;
+            }
+          } else {
+            columnMapping[csvHeader] = select.value;
+          }
+
           // Store prefix filter if slug is mapped
           if (select.value === 'slug') {
             const prefixInput = document.getElementById('prefix-input-' + escapeAttr(csvHeader));
@@ -12277,7 +12567,26 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           showToast('Destination URL must be mapped from a CSV column', 'error');
           return;
         }
-        
+
+        // Validate City Redirect mappings: a column set to "City Redirect" must have a
+        // city name, otherwise the mapping is silently dropped. Block import with feedback.
+        const blankCityCols = csvData.headers.filter(h => {
+          const sel = document.getElementById('mapping-' + escapeAttr(h));
+          if (!sel || sel.value !== 'city_redirect') return false;
+          const ci = document.getElementById('city-input-' + escapeAttr(h));
+          return !(ci && ci.value.trim());
+        });
+        if (blankCityCols.length > 0) {
+          showToast('Enter a city name for the City Redirect column(s): ' + blankCityCols.join(', '), 'error');
+          return;
+        }
+        // Enforce the backend's per-link limit of 20 city redirects.
+        const cityCount = Object.values(columnMapping).filter(v => typeof v === 'string' && v.startsWith('city_redirect:')).length;
+        if (cityCount > 20) {
+          showToast('Too many City Redirect columns (' + cityCount + '). Maximum is 20.', 'error');
+          return;
+        }
+
         try {
           setLoading('import-csv-form', true);
           submitBtn.disabled = true;
@@ -12553,7 +12862,7 @@ function constructShortUrl(domain, slug, route) {
   // Construct URL based on route
   let urlPath = '/' + slug;
   if (route && route.includes('*')) {
-    urlPath = route.replace('*', slug);
+    urlPath = route.split('*').join(slug);
     // Ensure it starts with /
     if (!urlPath.startsWith('/')) urlPath = '/' + urlPath;
   } else if (route) {

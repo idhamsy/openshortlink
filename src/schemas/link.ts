@@ -30,6 +30,22 @@ export const deviceRedirectSchema = z.object({
   destination_url: z.string().url(),
 });
 
+/**
+ * City redirect schema - used in both create and update
+ */
+export const cityRedirectSchema = z.object({
+  city_name: z.string().min(1).transform((val) => val.toLowerCase()),
+  destination_url: z.string().url(),
+});
+
+/**
+ * OS redirect schema - used in both create and update
+ */
+export const osRedirectSchema = z.object({
+  os: z.enum(['android', 'ios']),
+  destination_url: z.string().url(),
+});
+
 // ============================================================================
 // Base Schema (shared fields)
 // ============================================================================
@@ -46,8 +62,10 @@ const baseLinkSchema = z.object({
   category_id: z.string().optional(),
   expires_at: z.number().optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
-  geo_redirects: z.array(geoRedirectSchema).max(10).optional().default([]),
-  device_redirects: z.array(deviceRedirectSchema).optional().default([]),
+  geo_redirects: z.array(geoRedirectSchema).max(10).optional(),
+  device_redirects: z.array(deviceRedirectSchema).optional(),
+  city_redirects: z.array(cityRedirectSchema).max(20).optional(),
+  os_redirects: z.array(osRedirectSchema).max(20).optional(),
 });
 
 // ============================================================================
@@ -61,6 +79,10 @@ export const createLinkSchema = baseLinkSchema.extend({
   domain_id: z.string().min(1),
   slug: z.string().optional(),
   route: z.string().optional(),
+  geo_redirects: z.array(geoRedirectSchema).max(10).optional().default([]),
+  device_redirects: z.array(deviceRedirectSchema).optional().default([]),
+  city_redirects: z.array(cityRedirectSchema).max(20).optional().default([]),
+  os_redirects: z.array(osRedirectSchema).max(20).optional().default([]),
 });
 
 // ============================================================================
@@ -112,6 +134,8 @@ export const linkQuerySchema = z.object({
 
 export type GeoRedirectInput = z.infer<typeof geoRedirectSchema>;
 export type DeviceRedirectInput = z.infer<typeof deviceRedirectSchema>;
+export type CityRedirectInput = z.infer<typeof cityRedirectSchema>;
+export type OsRedirectInput = z.infer<typeof osRedirectSchema>;
 export type CreateLinkInput = z.infer<typeof createLinkSchema>;
 export type UpdateLinkInput = z.infer<typeof updateLinkSchema>;
 export type LinkQueryParams = z.infer<typeof linkQuerySchema>;

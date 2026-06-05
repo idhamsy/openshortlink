@@ -190,9 +190,9 @@ export async function listLinks(
   }
 
   let query = `
-    SELECT l.*, d.domain_name
-    FROM links l 
-    JOIN domains d ON l.domain_id = d.id 
+    SELECT l.*, d.domain_name, d.routing_path
+    FROM links l
+    JOIN domains d ON l.domain_id = d.id
     WHERE l.status != ? AND d.status = 'active'
   `;
   const params: unknown[] = ['deleted'];
@@ -402,7 +402,7 @@ export async function listLinksWithTagFilter(
 
   // Build query with JOINs for database-level filtering
   let query = `
-    SELECT DISTINCT l.*, d.domain_name
+    SELECT DISTINCT l.*, d.domain_name, d.routing_path
     FROM links l
     JOIN domains d ON l.domain_id = d.id
   `;
@@ -634,7 +634,7 @@ export async function getLinksByDestinationUrl(
   } = {}
 ): Promise<Link[]> {
   let query = `
-    SELECT l.*, l.last_status_code, l.last_status_check_at, d.domain_name
+    SELECT l.*, l.last_status_code, l.last_status_check_at, d.domain_name, d.routing_path
     FROM links l
     JOIN domains d ON l.domain_id = d.id
     WHERE l.status != 'deleted' AND l.destination_url = ?

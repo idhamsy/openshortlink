@@ -849,10 +849,10 @@ authRouter.post('/token', authMiddleware, async (c) => {
       throw error;
     }
     
-    // Return detailed error for debugging
-    throw new HTTPException(500, { 
-      message: 'Failed to create token',
-      error: error instanceof Error ? error.message : 'Unknown error'
+    // The full error is already logged by the global errorHandler (console.error);
+    // HTTPException only surfaces `message`, so don't pass a non-standard `error` field.
+    throw new HTTPException(500, {
+      message: 'Failed to create token'
     });
   }
 });
