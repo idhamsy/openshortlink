@@ -18,8 +18,8 @@ import { isValidUrl, isValidSlug, normalizeUrl, isReservedSlug } from '../utils/
 import { checkSlugExists } from '../db/links';
 import { upsertGeoRedirect, upsertDeviceRedirect, getGeoRedirects, getDeviceRedirects,
          upsertCityRedirect, upsertOsRedirect, getCityRedirects, getOsRedirects } from '../db/linkRedirects';
-import { setLinkTags, listTags, createTag } from '../db/tags';
-import { listCategories, createCategory } from '../db/categories';
+import { setLinkTags, listTags, createTag, getTagById } from '../db/tags';
+import { listCategories, createCategory, getCategoryById } from '../db/categories';
 import { setCachedLink } from '../services/cache';
 import { getEffectiveLinkRoute } from '../utils/route';
 
@@ -94,6 +94,13 @@ importRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links')
                     ids.push(value);
                     continue;
                 }
+                // ...including a global/cross-domain tag ID we didn't preload (verify it exists,
+                // so an ID-based CSV doesn't get turned into a literal "tag_..." name).
+                if (value.startsWith('tag_') && await getTagById(c.env, value)) {
+                    knownTagIds.add(value);
+                    ids.push(value);
+                    continue;
+                }
                 // ...otherwise treat it as a name: validate, then reuse if present, else create.
                 if (value.length > MAX_NAME) {
                     throw new Error(`Tag name too long (max ${MAX_NAME}): ${value}`);
@@ -124,6 +131,11 @@ importRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links')
         }
         const resolveCategoryId = async (value: string): Promise<string> => {
             if (knownCatIds.has(value)) return value;
+            // A global/cross-domain category ID we didn't preload: accept if it exists.
+            if (value.startsWith('cat_') && await getCategoryById(c.env, value)) {
+                knownCatIds.add(value);
+                return value;
+            }
             if (value.length > MAX_NAME) {
                 throw new Error(`Category name too long (max ${MAX_NAME}): ${value}`);
             }
@@ -220,14 +232,6 @@ importRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links')
                 }
                 const effectiveRoute = getEffectiveLinkRoute(domain, route);
 
-                // Validate category if provided (stored in the dedicated column for joins/filters).
-                // Fail the row on an unknown category — same as POST /links and PUT /:id, so we
-                // don't silently drop the assignment while reporting success.
-                let validCategoryId: string | undefined = undefined;
-                if (categoryId) {
-                    validCategoryId = await resolveCategoryId(categoryId);
-                }
-
                 // Generate or validate slug
                 if (slug) {
                     if (!isValidSlug(slug)) {
@@ -249,6 +253,13 @@ importRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links')
                     if (attempts >= 10) {
                         throw new Error('Failed to generate unique slug');
                     }
+                }
+
+                // Resolve category AFTER all pre-insert validation (slug etc.) so a row that
+                // fails validation never creates a stray category. Stored in its own column.
+                let validCategoryId: string | undefined = undefined;
+                if (categoryId) {
+                    validCategoryId = await resolveCategoryId(categoryId);
                 }
 
                 // Prepare metadata (route stored here; category goes in its own column)

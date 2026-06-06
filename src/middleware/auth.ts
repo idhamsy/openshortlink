@@ -309,6 +309,9 @@ export async function optionalAuth(c: Context<{ Bindings: Env; Variables: Variab
           global_access: hasGlobalAccess,
           accessible_domain_ids: accessibleDomainIds,
         });
+        // #11: a flagged session must not perform privileged actions on optionalAuth
+        // routes either (e.g. /auth/register creating users) until it changes its password.
+        enforcePasswordChangePending(c, user);
         c.set('session', session);
       }
     }
