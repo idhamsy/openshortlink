@@ -69,8 +69,11 @@ app.use('*', async (c, next) => {
     // Auth endpoints: security headers only, no CSRF
     await securityHeaders(c, next);
   } else {
-    // Skip for redirect routes - just continue
-    await next();
+    // Public routes (redirects + the root/route landing page, which can now return
+    // branded or custom HTML): apply security headers. No CSRF — GET-only, no session
+    // writes. CSP allows inline styles ('unsafe-inline') so the branded page renders,
+    // and blocks unnonced inline scripts in custom-HTML mode.
+    await securityHeaders(c, next);
   }
 });
 

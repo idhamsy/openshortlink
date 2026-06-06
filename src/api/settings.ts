@@ -238,9 +238,8 @@ settingsRouter.put('/root-page', authMiddleware, validateJson(rootPageSchema), a
     if (error instanceof HTTPException) {
       throw error;
     }
-    throw new HTTPException(500, {
-      message: error instanceof Error ? error.message : 'Failed to update root page settings',
-    });
+    // Keep internal error details in logs only; return a generic message to clients.
+    throw new HTTPException(500, { message: 'Failed to update root page settings' });
   }
 });
 

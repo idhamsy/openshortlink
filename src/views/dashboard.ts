@@ -2493,12 +2493,30 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           return;
         }
         try {
-          await apiRequest('/auth/change-password', {
+          // Use a direct fetch (not apiRequest): apiRequest treats any 401 as an expired
+          // session and logs the user out — but here a 401 means "current password wrong",
+          // which must stay on this screen (it's the only way to clear the forced-change flag).
+          const token = (typeof getAuthToken === 'function') ? getAuthToken() : (localStorage.getItem('auth_token') || '');
+          const csrf = (typeof apiClient !== 'undefined' && apiClient.getCsrfToken) ? apiClient.getCsrfToken() : '';
+          const resp = await fetch('/dashboard/api/v1/auth/change-password', {
             method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token, 'X-CSRF-Token': csrf },
             body: JSON.stringify({ current_password: current, new_password: next }),
           });
-          // Password changed (flag cleared server-side) — reload into the normal dashboard.
-          window.location.reload();
+          if (resp.ok) {
+            // Password changed (flag cleared server-side) — reload into the normal dashboard.
+            window.location.reload();
+            return;
+          }
+          let msg = 'Failed to change password';
+          if (resp.status === 401) {
+            msg = 'Current password is incorrect';
+          } else {
+            try { const j = await resp.json(); msg = (j.error && j.error.message) || j.message || msg; } catch (e) {}
+          }
+          errorDiv.textContent = msg;
+          errorDiv.style.display = 'block';
         } catch (error) {
           errorDiv.textContent = error.message || 'Failed to change password';
           errorDiv.style.display = 'block';

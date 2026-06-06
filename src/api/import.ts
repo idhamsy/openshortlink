@@ -19,7 +19,7 @@ import { checkSlugExists } from '../db/links';
 import { upsertGeoRedirect, upsertDeviceRedirect, getGeoRedirects, getDeviceRedirects,
          upsertCityRedirect, upsertOsRedirect, getCityRedirects, getOsRedirects } from '../db/linkRedirects';
 import { setLinkTags, listTags, createTag } from '../db/tags';
-import { getCategoryById } from '../db/categories';
+import { listCategories, createCategory } from '../db/categories';
 import { setCachedLink } from '../services/cache';
 import { getEffectiveLinkRoute } from '../utils/route';
 
@@ -85,6 +85,7 @@ importRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links')
             if (t.name) tagNameToId.set(t.name.toLowerCase(), t.id);
             knownTagIds.add(t.id);
         }
+        const MAX_NAME = 50; // matches createTagSchema / createCategorySchema
         const resolveTagIds = async (values: string[]): Promise<string[]> => {
             const ids: string[] = [];
             for (const value of values) {
@@ -93,7 +94,10 @@ importRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links')
                     ids.push(value);
                     continue;
                 }
-                // ...otherwise treat it as a name: reuse if present, else create.
+                // ...otherwise treat it as a name: validate, then reuse if present, else create.
+                if (value.length > MAX_NAME) {
+                    throw new Error(`Tag name too long (max ${MAX_NAME}): ${value}`);
+                }
                 const key = value.toLowerCase();
                 let id = tagNameToId.get(key);
                 if (!id) {
@@ -104,7 +108,34 @@ importRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links')
                 }
                 ids.push(id);
             }
-            return ids;
+            // Dedupe so setLinkTags never inserts the same (link_id, tag_id) twice
+            // (e.g. "news, News" or an existing ID plus its name).
+            return [...new Set(ids)];
+        };
+
+        // #14: resolve a Category column of a NAME (or existing ID) into a category ID —
+        // reuse an existing category by name, else create it — so a CSV exported by this
+        // dashboard (Category column holds the name) round-trips instead of failing.
+        const catNameToId = new Map<string, string>();
+        const knownCatIds = new Set<string>();
+        for (const cat of await listCategories(c.env, { domainId })) {
+            if (cat.name) catNameToId.set(cat.name.toLowerCase(), cat.id);
+            knownCatIds.add(cat.id);
+        }
+        const resolveCategoryId = async (value: string): Promise<string> => {
+            if (knownCatIds.has(value)) return value;
+            if (value.length > MAX_NAME) {
+                throw new Error(`Category name too long (max ${MAX_NAME}): ${value}`);
+            }
+            const key = value.toLowerCase();
+            let id = catNameToId.get(key);
+            if (!id) {
+                const created = await createCategory(c.env, { name: value, domain_id: domainId });
+                id = created.id;
+                catNameToId.set(key, id);
+                knownCatIds.add(id);
+            }
+            return id;
         };
 
         // Process rows
@@ -136,6 +167,7 @@ importRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links')
                 let tagsStr = row['tags'] || row['tag'];
                 let route = row['route'] || row['path_prefix'];
                 let categoryId = row['category_id'] || row['category'];
+                let redirectCodeStr = row['redirect_code'];
 
                 // If column mapping is provided, override
                 // Mapping format: { "csv_header": "field_name" }
@@ -149,7 +181,19 @@ importRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links')
                         else if (fieldName === 'tags') tagsStr = row[csvHeader];
                         else if (fieldName === 'route') route = row[csvHeader];
                         else if (fieldName === 'category_id') categoryId = row[csvHeader];
+                        else if (fieldName === 'redirect_code') redirectCodeStr = row[csvHeader];
                     }
+                }
+
+                // Validate redirect code if provided (else default to 301). Without this,
+                // a mapped "Redirect Code" column would be silently ignored.
+                let redirectCode = 301;
+                if (redirectCodeStr !== undefined && String(redirectCodeStr).trim() !== '') {
+                    const parsed = parseInt(String(redirectCodeStr).trim(), 10);
+                    if (![301, 302, 307, 308].includes(parsed)) {
+                        throw new Error(`Invalid redirect code: ${redirectCodeStr} (allowed: 301, 302, 307, 308)`);
+                    }
+                    redirectCode = parsed;
                 }
 
                 if (!destinationUrl) {
@@ -181,11 +225,7 @@ importRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links')
                 // don't silently drop the assignment while reporting success.
                 let validCategoryId: string | undefined = undefined;
                 if (categoryId) {
-                    const category = await getCategoryById(c.env, categoryId);
-                    if (!category) {
-                        throw new Error(`Category not found: ${categoryId}`);
-                    }
-                    validCategoryId = categoryId;
+                    validCategoryId = await resolveCategoryId(categoryId);
                 }
 
                 // Generate or validate slug
@@ -224,7 +264,7 @@ importRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links')
                     destination_url: destinationUrl,
                     title: title || undefined,
                     description: description || undefined,
-                    redirect_code: 301,
+                    redirect_code: redirectCode,
                     status: 'active',
                     click_count: 0,
                     unique_visitors: 0,

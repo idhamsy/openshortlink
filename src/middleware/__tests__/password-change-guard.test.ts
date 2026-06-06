@@ -27,6 +27,14 @@ describe('shouldBlockForPasswordChange (#11)', () => {
     expect(shouldBlockForPasswordChange('/api/v1/auth/change-password', 1)).toBe(false);
     expect(shouldBlockForPasswordChange('/dashboard/api/v1/auth/me', 1)).toBe(false);
     expect(shouldBlockForPasswordChange('/dashboard/api/v1/auth/logout', 1)).toBe(false);
+    expect(shouldBlockForPasswordChange('/api/v1/auth/me/', 1)).toBe(false); // trailing slash tolerated
+  });
+
+  it('uses exact-path matching, not a permissive suffix (CodeRabbit hardening)', () => {
+    // A route that merely ENDS in an allowed name must still be blocked.
+    expect(shouldBlockForPasswordChange('/api/v1/links/auth/me', 1)).toBe(true);
+    expect(shouldBlockForPasswordChange('/evil/auth/change-password', 1)).toBe(true);
+    expect(shouldBlockForPasswordChange('/api/v2/auth/me', 1)).toBe(true);
   });
 
   it('only treats the value 1 as "must change" (not other truthy numbers)', () => {

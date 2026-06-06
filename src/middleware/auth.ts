@@ -229,10 +229,10 @@ export function shouldBlockForPasswordChange(
   mustChangePassword: number | undefined
 ): boolean {
   if (mustChangePassword !== 1) return false;
-  const allowed =
-    path.endsWith('/auth/change-password') ||
-    path.endsWith('/auth/me') ||
-    path.endsWith('/auth/logout');
+  // Exact-path allowlist (both /api/v1/... and /dashboard/api/v1/... mounts), not a
+  // suffix check — endsWith() would let any route ending in these names slip through.
+  const normalized = path.replace(/\/+$/, '');
+  const allowed = /^\/(?:dashboard\/)?api\/v1\/auth\/(?:change-password|me|logout)$/.test(normalized);
   return !allowed;
 }
 
