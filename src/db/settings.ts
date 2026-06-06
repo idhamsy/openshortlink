@@ -256,3 +256,74 @@ export async function setAnalyticsThresholds(
     .run();
 }
 
+// Root Page Settings (#12)
+// Controls what the root of a known domain serves when no slug is given.
+// - 'branded'  : a built-in OpenShort.link welcome page (default)
+// - 'html'     : custom HTML provided by the admin
+// - 'redirect' : 302 redirect to a configured URL
+export type RootPageMode = 'branded' | 'html' | 'redirect';
+
+export interface RootPageSettings {
+  mode: RootPageMode;
+  html: string;
+  redirect_url: string;
+  last_updated_at?: number;
+  last_updated_by?: string;
+}
+
+export async function getRootPageSettings(env: Env): Promise<RootPageSettings | null> {
+  const result = await env.DB.prepare(
+    `SELECT value, updated_at, updated_by FROM settings WHERE key = ? AND domain_id IS NULL`
+  )
+    .bind('root_page')
+    .first<{ value: string; updated_at: number; updated_by?: string }>();
+
+  if (!result) return null;
+
+  try {
+    const parsed = JSON.parse(result.value) as Partial<RootPageSettings>;
+    const mode: RootPageMode =
+      parsed.mode === 'html' || parsed.mode === 'redirect' ? parsed.mode : 'branded';
+    return {
+      mode,
+      html: typeof parsed.html === 'string' ? parsed.html : '',
+      redirect_url: typeof parsed.redirect_url === 'string' ? parsed.redirect_url : '',
+      last_updated_at: result.updated_at,
+      last_updated_by: result.updated_by || undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function getRootPageSettingsOrDefault(env: Env): Promise<RootPageSettings> {
+  const setting = await getRootPageSettings(env);
+  if (setting) return setting;
+  return { mode: 'branded', html: '', redirect_url: '' };
+}
+
+export async function setRootPageSettings(
+  env: Env,
+  settings: { mode: RootPageMode; html: string; redirect_url: string },
+  userId: string
+): Promise<void> {
+  const now = Date.now();
+  const value = JSON.stringify({
+    mode: settings.mode,
+    html: settings.html,
+    redirect_url: settings.redirect_url,
+  });
+
+  await env.DB.prepare(
+    `INSERT INTO settings (key, value, domain_id, updated_at, updated_by)
+     VALUES (?, ?, NULL, ?, ?)
+     ON CONFLICT(key) DO UPDATE SET
+       value = excluded.value,
+       updated_at = excluded.updated_at,
+       updated_by = excluded.updated_by
+     WHERE domain_id IS NULL`
+  )
+    .bind('root_page', value, now, userId)
+    .run();
+}
+

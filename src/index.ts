@@ -17,6 +17,8 @@ import { securityHeaders } from './middleware/security';
 import { cacheControl } from './middleware/cache-control';
 import { handleRedirect } from './services/redirect';
 import { getDomainByRoutingPath } from './db/domains';
+import { getRootPageSettingsOrDefault } from './db/settings';
+import { escapeHtml } from './utils/html';
 
 // Import API routes (static - they're small and needed for functionality)
 import { linksRouter } from './api/links';
@@ -363,7 +365,19 @@ app.get('*', async (c) => {
   const slug = path.replace(routingPath, '').replace(/^\//, '').replace(/\/$/, '');
 
   if (!slug) {
-    return c.text('Slug required', 400);
+    // #12: serve the configured default page for the domain root (no slug given).
+    const rootPage = await getRootPageSettingsOrDefault(c.env);
+
+    if (rootPage.mode === 'redirect' && rootPage.redirect_url) {
+      return Response.redirect(rootPage.redirect_url, 302);
+    }
+
+    if (rootPage.mode === 'html' && rootPage.html.trim()) {
+      return c.html(rootPage.html);
+    }
+
+    // Default: a built-in branded welcome page.
+    return c.html(renderBrandedRootPage(domainObj.domain_name));
   }
 
   // Handle redirect (pass execution context for proper async tracking)
@@ -410,6 +424,39 @@ async function scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext)
       }
     })());
   }
+}
+
+// #12: built-in branded welcome page served at a domain root when no custom
+// page or redirect is configured. domainName is escaped (it originates from the DB).
+function renderBrandedRootPage(domainName: string): string {
+  const safeDomain = escapeHtml(domainName);
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${safeDomain}</title>
+  <style>
+    body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); color: #fff; }
+    .card { text-align: center; padding: 2.5rem; max-width: 480px; }
+    h1 { font-size: 2rem; margin: 0 0 0.5rem; }
+    p { opacity: 0.85; line-height: 1.6; margin: 0.5rem 0; }
+    .domain { font-weight: 600; }
+    .footer { margin-top: 2rem; font-size: 0.8rem; opacity: 0.6; }
+    a { color: #fff; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🔗 ${safeDomain}</h1>
+    <p>This is a URL shortener powered by <span class="domain">OpenShort.link</span>.</p>
+    <p>Short links on this domain redirect to their destinations. There's nothing to see here.</p>
+    <div class="footer">Powered by <a href="https://openshort.link" rel="noopener noreferrer">OpenShort.link</a></div>
+  </div>
+</body>
+</html>`;
 }
 
 // Export default object with both fetch (HTTP handler) and scheduled (cron handler)

@@ -39,8 +39,8 @@ export async function createUser(
   await env.DB.prepare(
     `INSERT INTO users (
       id, email, username, password_hash, cloudflare_access_id,
-      role, preferences, created_at, updated_at, global_access
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      role, preferences, created_at, updated_at, global_access, must_change_password
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
     .bind(
       id,
@@ -52,7 +52,8 @@ export async function createUser(
       user.preferences || null,
       now,
       now,
-      globalAccess
+      globalAccess,
+      user.must_change_password ? 1 : 0
     )
     .run();
 
@@ -98,6 +99,10 @@ export async function updateUser(
   if ((updates as { mfa_backup_codes?: string }).mfa_backup_codes !== undefined) {
     fields.push('mfa_backup_codes = ?');
     values.push((updates as { mfa_backup_codes?: string }).mfa_backup_codes);
+  }
+  if ((updates as { must_change_password?: number }).must_change_password !== undefined) {
+    fields.push('must_change_password = ?');
+    values.push((updates as { must_change_password?: number }).must_change_password);
   }
   let permissionChanged = false;
   

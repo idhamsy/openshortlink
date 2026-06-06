@@ -386,6 +386,7 @@ authRouter.get('/me', authMiddleware, async (c) => {
       email: fullUser.email,
       role: fullUser.role,
       mfa_enabled: fullUser.mfa_enabled === 1,
+      must_change_password: fullUser.must_change_password === 1, // #11
     }
   });
 });
@@ -711,9 +712,10 @@ authRouter.post('/change-password', authMiddleware, validateJson(changePasswordS
   // Hash new password
   const newPasswordHash = await hashPassword(validated.new_password);
 
-  // Update password
+  // Update password and clear any forced-change requirement (#11)
   await updateUser(c.env, user.id, {
     password_hash: newPasswordHash,
+    must_change_password: 0,
   } as any);
 
   // Log password change

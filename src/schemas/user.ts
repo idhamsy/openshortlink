@@ -30,6 +30,7 @@ export const createUserSchema = z.object({
   role: z.enum(['admin', 'user', 'analyst', 'owner']).default('user'),
   global_access: z.boolean().optional(),
   domain_ids: z.array(z.string()).optional(),
+  must_change_password: z.boolean().optional(), // #11: force a password change on first login
 });
 
 /**
@@ -42,6 +43,7 @@ export const updateUserSchema = z.object({
   global_access: z.boolean().optional(),
   domain_ids: z.array(z.string()).optional(),
   preferences: z.record(z.string(), z.unknown()).optional(),
+  must_change_password: z.boolean().optional(), // #11: admin can (re)require a password change
 });
 
 /**

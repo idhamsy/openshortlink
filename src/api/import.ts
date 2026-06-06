@@ -11,14 +11,14 @@ import { z } from 'zod';
 import type { Env } from '../types';
 import { authOrApiKeyMiddleware } from '../middleware/auth';
 import { requirePermission } from '../middleware/authorization';
-import { createLink } from '../db/links';
+import { createLink, deleteLink } from '../db/links';
 import { getDomainById } from '../db/domains';
 import { generateSlug } from '../utils/id';
 import { isValidUrl, isValidSlug, normalizeUrl, isReservedSlug } from '../utils/validation';
 import { checkSlugExists } from '../db/links';
 import { upsertGeoRedirect, upsertDeviceRedirect, getGeoRedirects, getDeviceRedirects,
          upsertCityRedirect, upsertOsRedirect, getCityRedirects, getOsRedirects } from '../db/linkRedirects';
-import { setLinkTags } from '../db/tags';
+import { setLinkTags, listTags, createTag } from '../db/tags';
 import { getCategoryById } from '../db/categories';
 import { setCachedLink } from '../services/cache';
 import { getEffectiveLinkRoute } from '../utils/route';
@@ -76,6 +76,37 @@ importRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links')
             return c.json({ success: true, data: { success: 0, errors: 0, results: [] } });
         }
 
+        // #14: resolve a CSV "Tags" column of human-friendly NAMES (or existing IDs)
+        // into tag IDs, creating missing domain-scoped tags. Built once and reused
+        // across rows so a name typed in several rows maps to a single tag.
+        const tagNameToId = new Map<string, string>();
+        const knownTagIds = new Set<string>();
+        for (const t of await listTags(c.env, { domainId })) {
+            if (t.name) tagNameToId.set(t.name.toLowerCase(), t.id);
+            knownTagIds.add(t.id);
+        }
+        const resolveTagIds = async (values: string[]): Promise<string[]> => {
+            const ids: string[] = [];
+            for (const value of values) {
+                // Accept an existing tag ID as-is (backward compatible with ID-based CSVs)...
+                if (knownTagIds.has(value)) {
+                    ids.push(value);
+                    continue;
+                }
+                // ...otherwise treat it as a name: reuse if present, else create.
+                const key = value.toLowerCase();
+                let id = tagNameToId.get(key);
+                if (!id) {
+                    const created = await createTag(c.env, { name: value, domain_id: domainId });
+                    id = created.id;
+                    tagNameToId.set(key, id);
+                    knownTagIds.add(id);
+                }
+                ids.push(id);
+            }
+            return ids;
+        };
+
         // Process rows
         const results = [];
         let successCount = 0;
@@ -89,6 +120,9 @@ importRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links')
             // Skip empty rows
             if (Object.keys(row).length === 0) continue;
 
+            // Tracks a link created in this row so we can roll it back if a later
+            // step (tags/redirects/cache) fails — keeps each row all-or-nothing.
+            let createdLinkId: string | null = null;
             try {
                 // Extract data based on mapping or auto-detection
                 // The row is an object with keys as headers (if headers exist) or indices
@@ -197,12 +231,14 @@ importRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links')
                     category_id: validCategoryId,
                     metadata,
                 });
+                createdLinkId = link.id;
 
-                // Handle tags
+                // Handle tags — resolve names (or existing IDs) to tag IDs (#14)
                 if (tagsStr) {
-                    const tags = tagsStr.split(',').map((t: string) => t.trim()).filter((t: string) => t.length > 0);
-                    if (tags.length > 0) {
-                        await setLinkTags(c.env, link.id, tags);
+                    const tagValues = tagsStr.split(',').map((t: string) => t.trim()).filter((t: string) => t.length > 0);
+                    if (tagValues.length > 0) {
+                        const tagIds = await resolveTagIds(tagValues);
+                        await setLinkTags(c.env, link.id, tagIds);
                     }
                 }
 
@@ -327,6 +363,16 @@ importRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links')
                 results.push({ row: i, success: true, slug: link.slug });
 
             } catch (error: any) {
+                // Roll back a partially-created row: if the link was inserted but a
+                // later step failed, hard-delete it (FK ON DELETE CASCADE removes its
+                // tags/redirects) so a failed row leaves nothing behind.
+                if (createdLinkId) {
+                    try {
+                        await deleteLink(c.env, createdLinkId, true);
+                    } catch (cleanupErr) {
+                        console.error(`Import row ${i}: cleanup of link ${createdLinkId} failed:`, cleanupErr);
+                    }
+                }
                 errorCount++;
                 results.push({ row: i, success: false, error: error.message });
             }
@@ -342,6 +388,11 @@ importRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links')
         });
 
     } catch (error: any) {
+        // Preserve intended client errors (e.g. 400 "Domain ID is required", 404
+        // "Domain not found") instead of masking every failure as a 500.
+        if (error instanceof HTTPException) {
+            throw error;
+        }
         console.error('Import error:', error);
         throw new HTTPException(500, { message: error.message || 'Import failed' });
     }

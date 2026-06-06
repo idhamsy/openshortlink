@@ -22,12 +22,15 @@ import {
   getAnalyticsThresholds,
   getAnalyticsThresholdsOrDefault,
   setAnalyticsThresholds,
+  getRootPageSettingsOrDefault,
+  setRootPageSettings,
 } from '../db/settings';
 import { getFrequencyLabel } from '../types';
 import {
   statusCheckFrequencySchema,
   analyticsAggregationSchema,
   analyticsThresholdsSchema,
+  rootPageSchema,
 } from '../schemas';
 
 const settingsRouter = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -185,6 +188,58 @@ settingsRouter.put('/analytics-thresholds', authMiddleware, validateJson(analyti
     }
     throw new HTTPException(500, { 
       message: error instanceof Error ? error.message : 'Failed to update analytics thresholds' 
+    });
+  }
+});
+
+// Root page settings (#12) — what the domain root serves when no slug is given.
+settingsRouter.get('/root-page', authMiddleware, async (c) => {
+  const user = c.get('user') as User;
+
+  // Only admin/owner can view settings
+  if (!user || (user.role !== 'admin' && user.role !== 'owner')) {
+    throw new HTTPException(403, { message: 'Insufficient permissions' });
+  }
+
+  const setting = await getRootPageSettingsOrDefault(c.env);
+  return c.json({ success: true, data: setting });
+});
+
+settingsRouter.put('/root-page', authMiddleware, validateJson(rootPageSchema), async (c) => {
+  try {
+    const user = c.get('user') as User;
+
+    // Only admin/owner can update settings
+    if (!user || (user.role !== 'admin' && user.role !== 'owner')) {
+      throw new HTTPException(403, { message: 'Insufficient permissions' });
+    }
+
+    const validated = c.req.valid('json');
+
+    await setRootPageSettings(
+      c.env,
+      {
+        mode: validated.mode,
+        html: validated.html || '',
+        redirect_url: validated.redirect_url || '',
+      },
+      user.id
+    );
+
+    const updated = await getRootPageSettingsOrDefault(c.env);
+
+    return c.json({
+      success: true,
+      data: updated,
+      message: 'Root page settings updated successfully',
+    });
+  } catch (error) {
+    console.error('[SETTINGS] Update root page error:', error);
+    if (error instanceof HTTPException) {
+      throw error;
+    }
+    throw new HTTPException(500, {
+      message: error instanceof Error ? error.message : 'Failed to update root page settings',
     });
   }
 });

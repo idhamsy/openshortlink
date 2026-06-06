@@ -41,6 +41,18 @@ export const analyticsThresholdsSchema = z.object({
   threshold_days: z.number().int().min(1).max(90),
 });
 
+/**
+ * Root page schema (#12) — what the domain root serves when no slug is given.
+ */
+export const rootPageSchema = z.object({
+  mode: z.enum(['branded', 'html', 'redirect']),
+  html: z.string().max(100000).optional().default(''),
+  redirect_url: z.string().url().max(2048).optional().or(z.literal('')).default(''),
+}).refine(
+  (data) => data.mode !== 'redirect' || (!!data.redirect_url && data.redirect_url.length > 0),
+  { message: 'redirect_url is required when mode is "redirect"', path: ['redirect_url'] }
+);
+
 // ============================================================================
 // Type Inference
 // ============================================================================
@@ -48,3 +60,4 @@ export const analyticsThresholdsSchema = z.object({
 export type StatusCheckFrequencyInput = z.infer<typeof statusCheckFrequencySchema>;
 export type AnalyticsAggregationInput = z.infer<typeof analyticsAggregationSchema>;
 export type AnalyticsThresholdsInput = z.infer<typeof analyticsThresholdsSchema>;
+export type RootPageInput = z.infer<typeof rootPageSchema>;

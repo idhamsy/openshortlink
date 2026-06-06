@@ -6,4 +6,4 @@
  */
 
 
-export const ASSET_VERSION = 'v1';
+export const ASSET_VERSION = 'v2';

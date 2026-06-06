@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.9.1] - 2026-06-06
+
+### Added
+- **Force password change on first login (#11)**: admins can mark a user "must change password" when creating or editing them. Such users are blocked from the dashboard and API (except change-password / identity / logout) until they set a new password; a forced change screen is shown on login. Enforced server-side on both session middlewares.
+- **Configurable route landing page (#12)**: a new **Settings → Default Page** lets an admin choose what a domain's route base serves when no short link is given — a built-in branded page (default), custom HTML, or a redirect to a URL. Replaces the previous "Slug required" message.
+- **CSV import column auto-mapping (#14)**: the import UI now auto-selects the matching field for common headers (Destination URL, Slug, Title, Description, Redirect Code, Category, Tags, Route). A "Tags" column of names is resolved to tag IDs, creating any missing domain tags.
+- DB migration `0020_add_must_change_password.sql` — adds `users.must_change_password` (`NOT NULL DEFAULT 0`).
+
+### Changed
+- Dashboard styling migrated from hardcoded inline colors to theme CSS variables, giving consistent, readable **dark mode** across modals, callouts, panels, and help text. Light mode is visually unchanged.
+- Category selection dropdowns and filters now load all categories instead of only the first 25.
+
+### Fixed
+- **#18**: only 25 of N categories were selectable in link create/edit and in filters; all categories now appear.
+- **#19**: dark-mode readability — callout/info boxes and help text rendered light-on-light (notably the Add Domain modal) and were unreadable.
+- CSV import returned HTTP 500 for client errors (missing/unknown domain) instead of the intended 400/404.
+- CSV import rows are now atomic — if a row fails after the link is created, the link (and its tags/redirects) is rolled back instead of leaving an orphan.
+- Several inline dashboard regexes were silently broken by template-literal escaping (`\s`, `\.` lost), affecting domain-name and IP validation, JSON response highlighting, CSV geo country-name detection, and CSV header auto-mapping.
+
+### Security
+- `password_hash`, `mfa_secret`, and `mfa_backup_codes` are no longer included in `/users` API responses (GET/POST/PUT) — they previously leaked to admin/owner callers (and thus browser devtools/logs). `mfa_secret` exposure in particular allowed reconstructing another user's TOTP.
+
+---
+
 ## [0.9.0] - 2026-06-03
 
 ### Added

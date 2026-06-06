@@ -28,6 +28,15 @@ import { logAuditEvent, getIpAddress, getUserAgent } from '../services/audit';
 
 const usersRouter = new Hono<{ Bindings: Env; Variables: Variables }>();
 
+// Strip secret columns before returning a user in any API response.
+// password_hash / mfa_secret / mfa_backup_codes must never leave the server —
+// mfa_secret in particular would allow generating valid TOTP codes (MFA bypass).
+export function sanitizeUser(user: object): Record<string, unknown> {
+  const { password_hash, mfa_secret, mfa_backup_codes, ...safe } = user as Record<string, unknown>;
+  void password_hash; void mfa_secret; void mfa_backup_codes;
+  return safe;
+}
+
 // List all users (admin only)
 usersRouter.get('/', authMiddleware, requireRole(['admin', 'owner']), async (c) => {
   const users = await c.env.DB.prepare(
@@ -91,7 +100,7 @@ usersRouter.get('/:id', authMiddleware, requireRole(['admin', 'owner']), async (
   return c.json({
     success: true,
     data: {
-      ...user,
+      ...sanitizeUser(user),
       global_access: user.global_access === 1,
       domain_ids: userDomains.map(ud => ud.domain_id),
     },
@@ -153,6 +162,7 @@ usersRouter.post('/', authMiddleware, requireRole(['admin', 'owner']), validateJ
     password_hash: passwordHash,
     role: validated.role,
     global_access: globalAccess,
+    must_change_password: validated.must_change_password ? 1 : 0, // #11
   });
 
   // Set domain access if not global
@@ -182,7 +192,7 @@ usersRouter.post('/', authMiddleware, requireRole(['admin', 'owner']), validateJ
   return c.json({
     success: true,
     data: {
-      ...user,
+      ...sanitizeUser(user),
       global_access: globalAccess === 1,
       domain_ids: userDomains.map(ud => ud.domain_id),
     },
@@ -252,6 +262,11 @@ usersRouter.put('/:id', authMiddleware, requireRole(['admin', 'owner']), validat
   if (validated.preferences !== undefined) {
     updates.preferences = JSON.stringify(validated.preferences);
   }
+  if (validated.must_change_password !== undefined) {
+    // #11: admin can (re)require a forced password change
+    (updates as { must_change_password?: number }).must_change_password =
+      validated.must_change_password ? 1 : 0;
+  }
 
   // Update user
   const updatedUser = await updateUser(c.env, id, updates);
@@ -292,7 +307,7 @@ usersRouter.put('/:id', authMiddleware, requireRole(['admin', 'owner']), validat
   return c.json({
     success: true,
     data: {
-      ...updatedUser,
+      ...sanitizeUser(updatedUser),
       global_access: updatedUser.global_access === 1,
       domain_ids: userDomains.map(ud => ud.domain_id),
     },

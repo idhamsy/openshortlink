@@ -80,6 +80,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             <a href="#settings-security" class="nav-submenu-link" data-page="settings-security">Security</a>
             <a href="#settings-status-check" class="nav-submenu-link" data-page="settings-status-check">Status Check Configuration</a>
             <a href="#settings-analytics-aggregation" class="nav-submenu-link" data-page="settings-analytics-aggregation" id="settings-analytics-aggregation-link" style="display: none;">Analytics Aggregation</a>
+            <a href="#settings-default-page" class="nav-submenu-link" data-page="settings-default-page" id="settings-default-page-link" style="display: none;">Default Page</a>
             <a href="#settings-user-management" class="nav-submenu-link" data-page="settings-user-management" id="settings-user-management-link" style="display: none;">User Management</a>
             <a href="#settings-audit-log" class="nav-submenu-link" data-page="settings-audit-log">Audit Log</a>
           </div>
@@ -103,15 +104,15 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
               <input type="text" id="search-input" placeholder="Search links..." class="search-input">
               <div class="searchable-dropdown" style="position: relative;">
                 <input type="text" id="tag-filter-search" class="filter-select" placeholder="Search tags..." autocomplete="off" style="width: 100%;">
-                <div id="tag-filter-dropdown" class="dropdown-list" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ddd; border-radius: 4px; max-height: 200px; overflow-y: auto; z-index: 1000; margin-top: 0.25rem; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-                  <div class="dropdown-item" data-value="" style="padding: 0.5rem; cursor: pointer; border-bottom: 1px solid #f0f0f0;">All Tags</div>
+                <div id="tag-filter-dropdown" class="dropdown-list" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 4px; max-height: 200px; overflow-y: auto; z-index: 1000; margin-top: 0.25rem; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                  <div class="dropdown-item" data-value="" style="padding: 0.5rem; cursor: pointer; border-bottom: 1px solid var(--border-color);">All Tags</div>
                 </div>
                 <input type="hidden" id="tag-filter" value="">
               </div>
               <div class="searchable-dropdown" style="position: relative;">
                 <input type="text" id="category-filter-search" class="filter-select" placeholder="Search categories..." autocomplete="off" style="width: 100%;">
-                <div id="category-filter-dropdown" class="dropdown-list" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ddd; border-radius: 4px; max-height: 200px; overflow-y: auto; z-index: 1000; margin-top: 0.25rem; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-                  <div class="dropdown-item" data-value="" style="padding: 0.5rem; cursor: pointer; border-bottom: 1px solid #f0f0f0;">All Categories</div>
+                <div id="category-filter-dropdown" class="dropdown-list" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 4px; max-height: 200px; overflow-y: auto; z-index: 1000; margin-top: 0.25rem; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                  <div class="dropdown-item" data-value="" style="padding: 0.5rem; cursor: pointer; border-bottom: 1px solid var(--border-color);">All Categories</div>
                 </div>
                 <input type="hidden" id="category-filter" value="">
               </div>
@@ -325,111 +326,111 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             <h2 style="margin-bottom: 1.5rem; border-bottom: 2px solid #007bff; padding-bottom: 0.5rem;">API Documentation</h2>
             
             <!-- Authentication Section -->
-            <div style="background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2rem;">
+            <div style="background: var(--card-bg); padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2rem;">
               <h3 style="margin-bottom: 1rem; color: #007bff;">🔐 Authentication</h3>
-              <p style="margin-bottom: 1rem; color: #666;">All API requests require authentication using an API key in the Authorization header:</p>
-              <div style="background: #f8f9fa; padding: 1rem; border-radius: 4px; border-left: 4px solid #007bff; margin-bottom: 1rem;">
+              <p style="margin-bottom: 1rem; color: var(--secondary-color);">All API requests require authentication using an API key in the Authorization header:</p>
+              <div style="background: var(--bg-color); padding: 1rem; border-radius: 4px; border-left: 4px solid #007bff; margin-bottom: 1rem;">
                 <code style="font-family: monospace; font-size: 0.9rem;">Authorization: Bearer &lt;your_api_key&gt;</code>
               </div>
               
-              <p style="margin-bottom: 0.5rem; color: #666;"><strong>Base URL:</strong></p>
-              <div style="background: #f8f9fa; padding: 1rem; border-radius: 4px; margin-bottom: 1.5rem;">
+              <p style="margin-bottom: 0.5rem; color: var(--secondary-color);"><strong>Base URL:</strong></p>
+              <div style="background: var(--bg-color); padding: 1rem; border-radius: 4px; margin-bottom: 1.5rem;">
                 <code id="api-base-url" style="font-family: monospace; font-size: 0.9rem;">/api/v1</code>
               </div>
               
               <details style="margin-bottom: 1rem;">
-                <summary style="cursor: pointer; padding: 0.75rem; background: #f8f9fa; border-radius: 4px; font-weight: 600; color: #333; user-select: none;">
+                <summary style="cursor: pointer; padding: 0.75rem; background: var(--bg-color); border-radius: 4px; font-weight: 600; color: var(--text-color); user-select: none;">
                   🔐 API Key Details - Click to expand/collapse
                 </summary>
                 <div style="padding: 1rem 0;">
-                  <h4 style="margin: 1rem 0 0.5rem 0; color: #333;">📋 API Key Format</h4>
-                  <p style="margin-bottom: 0.5rem; color: #666;">API keys follow this format:</p>
-                  <div style="background: #f8f9fa; padding: 1rem; border-radius: 4px; margin-bottom: 1rem;">
+                  <h4 style="margin: 1rem 0 0.5rem 0; color: var(--text-color);">📋 API Key Format</h4>
+                  <p style="margin-bottom: 0.5rem; color: var(--secondary-color);">API keys follow this format:</p>
+                  <div style="background: var(--bg-color); padding: 1rem; border-radius: 4px; margin-bottom: 1rem;">
                     <code style="font-family: monospace; font-size: 0.9rem;">sk_live_&lt;random_string&gt;</code>
                   </div>
-                  <ul style="margin: 0.5rem 0 1.5rem 1.5rem; color: #666;">
+                  <ul style="margin: 0.5rem 0 1.5rem 1.5rem; color: var(--secondary-color);">
                     <li><strong>sk_live_</strong> - Prefix indicating a live API key</li>
                     <li>Keys are shown only once during creation - store them securely</li>
                     <li>Keys are hashed in the database for security</li>
                   </ul>
                   
-                  <h4 style="margin: 1.5rem 0 0.5rem 0; color: #333;">🌐 Domain Scoping</h4>
-                  <p style="margin-bottom: 0.5rem; color: #666;">API keys can be scoped to specific domains:</p>
-                  <ul style="margin: 0.5rem 0 1.5rem 1.5rem; color: #666;">
+                  <h4 style="margin: 1.5rem 0 0.5rem 0; color: var(--text-color);">🌐 Domain Scoping</h4>
+                  <p style="margin-bottom: 0.5rem; color: var(--secondary-color);">API keys can be scoped to specific domains:</p>
+                  <ul style="margin: 0.5rem 0 1.5rem 1.5rem; color: var(--secondary-color);">
                     <li><strong>All Domains:</strong> Leave domain_ids empty during creation</li>
                     <li><strong>Specific Domains:</strong> Provide array of domain IDs to restrict access</li>
                     <li>Scoped keys can only access resources within assigned domains</li>
                   </ul>
                   
-                  <h4 style="margin: 1.5rem 0 0.5rem 0; color: #333;">🔒 IP Whitelisting</h4>
-                  <p style="margin-bottom: 0.5rem; color: #666;">Control which IPs can use your API key:</p>
-                  <ul style="margin: 0.5rem 0 0 1.5rem; color: #666;">
+                  <h4 style="margin: 1.5rem 0 0.5rem 0; color: var(--text-color);">🔒 IP Whitelisting</h4>
+                  <p style="margin-bottom: 0.5rem; color: var(--secondary-color);">Control which IPs can use your API key:</p>
+                  <ul style="margin: 0.5rem 0 0 1.5rem; color: var(--secondary-color);">
                     <li><strong>Allow All IPs:</strong> Set <code>allow_all_ips: true</code></li>
                     <li><strong>Whitelist Specific IPs:</strong> Provide array of IP addresses in <code>ip_whitelist</code></li>
                     <li>Both IPv4 and IPv6 addresses are supported</li>
                   </ul>
                   
-                  <h4 style="margin: 1.5rem 0 0.5rem 0; color: #333;">⚠️ Error Codes</h4>
-                  <p style="margin-bottom: 1rem; color: #666;">All API responses follow a consistent format. Errors include a status code and descriptive message.</p>
+                  <h4 style="margin: 1.5rem 0 0.5rem 0; color: var(--text-color);">⚠️ Error Codes</h4>
+                  <p style="margin-bottom: 1rem; color: var(--secondary-color);">All API responses follow a consistent format. Errors include a status code and descriptive message.</p>
                   
-                  <h5 style="margin: 1rem 0 0.5rem 0; color: #555; font-size: 0.95rem;">Standard Error Codes</h5>
+                  <h5 style="margin: 1rem 0 0.5rem 0; color: var(--text-color); font-size: 0.95rem;">Standard Error Codes</h5>
                   <table style="width: 100%; border-collapse: collapse; margin-bottom: 1.5rem;">
                     <thead>
-                      <tr style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">
+                      <tr style="background: var(--bg-color); border-bottom: 2px solid var(--border-color);">
                         <th style="padding: 0.75rem; text-align: left; font-weight: 600;">Code</th>
                         <th style="padding: 0.75rem; text-align: left; font-weight: 600;">Name</th>
                         <th style="padding: 0.75rem; text-align: left; font-weight: 600;">Description</th>
                       </tr>
                     </thead>
                     <tbody>
-                      <tr style="border-bottom: 1px solid #dee2e6;">
+                      <tr style="border-bottom: 1px solid var(--border-color);">
                         <td style="padding: 0.75rem; font-family: monospace; color: #dc3545;">400</td>
                         <td style="padding: 0.75rem; font-weight: 500;">Bad Request</td>
-                        <td style="padding: 0.75rem; color: #666;">Invalid parameters, validation errors, or malformed request</td>
+                        <td style="padding: 0.75rem; color: var(--secondary-color);">Invalid parameters, validation errors, or malformed request</td>
                       </tr>
-                      <tr style="border-bottom: 1px solid #dee2e6;">
+                      <tr style="border-bottom: 1px solid var(--border-color);">
                         <td style="padding: 0.75rem; font-family: monospace; color: #dc3545;">401</td>
                         <td style="padding: 0.75rem; font-weight: 500;">Unauthorized</td>
-                        <td style="padding: 0.75rem; color: #666;">Missing, invalid, or expired API key</td>
+                        <td style="padding: 0.75rem; color: var(--secondary-color);">Missing, invalid, or expired API key</td>
                       </tr>
-                      <tr style="border-bottom: 1px solid #dee2e6;">
+                      <tr style="border-bottom: 1px solid var(--border-color);">
                         <td style="padding: 0.75rem; font-family: monospace; color: #dc3545;">403</td>
                         <td style="padding: 0.75rem; font-weight: 500;">Forbidden</td>
-                        <td style="padding: 0.75rem; color: #666;">Access denied to resource, domain not in scope, or insufficient permissions</td>
+                        <td style="padding: 0.75rem; color: var(--secondary-color);">Access denied to resource, domain not in scope, or insufficient permissions</td>
                       </tr>
-                      <tr style="border-bottom: 1px solid #dee2e6;">
+                      <tr style="border-bottom: 1px solid var(--border-color);">
                         <td style="padding: 0.75rem; font-family: monospace; color: #dc3545;">404</td>
                         <td style="padding: 0.75rem; font-weight: 500;">Not Found</td>
-                        <td style="padding: 0.75rem; color: #666;">Resource doesn't exist or has been deleted</td>
+                        <td style="padding: 0.75rem; color: var(--secondary-color);">Resource doesn't exist or has been deleted</td>
                       </tr>
-                      <tr style="border-bottom: 1px solid #dee2e6;">
+                      <tr style="border-bottom: 1px solid var(--border-color);">
                         <td style="padding: 0.75rem; font-family: monospace; color: #dc3545;">408</td>
                         <td style="padding: 0.75rem; font-weight: 500;">Request Timeout</td>
-                        <td style="padding: 0.75rem; color: #666;">Query took too long to execute (only for complex list operations)</td>
+                        <td style="padding: 0.75rem; color: var(--secondary-color);">Query took too long to execute (only for complex list operations)</td>
                       </tr>
-                      <tr style="border-bottom: 1px solid #dee2e6;">
+                      <tr style="border-bottom: 1px solid var(--border-color);">
                         <td style="padding: 0.75rem; font-family: monospace; color: #dc3545;">409</td>
                         <td style="padding: 0.75rem; font-weight: 500;">Conflict</td>
-                        <td style="padding: 0.75rem; color: #666;">Resource already exists (e.g., slug, domain, tag, or category name)</td>
+                        <td style="padding: 0.75rem; color: var(--secondary-color);">Resource already exists (e.g., slug, domain, tag, or category name)</td>
                       </tr>
-                      <tr style="border-bottom: 1px solid #dee2e6;">
+                      <tr style="border-bottom: 1px solid var(--border-color);">
                         <td style="padding: 0.75rem; font-family: monospace; color: #dc3545;">429</td>
                         <td style="padding: 0.75rem; font-weight: 500;">Too Many Requests</td>
-                        <td style="padding: 0.75rem; color: #666;">Rate limit exceeded (applies to failed authentication attempts)</td>
+                        <td style="padding: 0.75rem; color: var(--secondary-color);">Rate limit exceeded (applies to failed authentication attempts)</td>
                       </tr>
                       <tr>
                         <td style="padding: 0.75rem; font-family: monospace; color: #dc3545;">500</td>
                         <td style="padding: 0.75rem; font-weight: 500;">Internal Server Error</td>
-                        <td style="padding: 0.75rem; color: #666;">Server-side error occurred</td>
+                        <td style="padding: 0.75rem; color: var(--secondary-color);">Server-side error occurred</td>
                       </tr>
                     </tbody>
                   </table>
                 </div>
               </details>
               
-              <div style="background: #fff3cd; padding: 1rem; border-radius: 4px; border-left: 4px solid #ffc107;">
-                <p style="margin: 0; color: #856404;"><strong>⚠️ Security Requirements:</strong></p>
-                <ul style="margin: 0.5rem 0 0 1.5rem; color: #856404;">
+              <div style="background: var(--warning-bg); padding: 1rem; border-radius: 4px; border-left: 4px solid #ffc107;">
+                <p style="margin: 0; color: var(--warning-text);"><strong>⚠️ Security Requirements:</strong></p>
+                <ul style="margin: 0.5rem 0 0 1.5rem; color: var(--warning-text);">
                   <li>API keys must be active and not expired</li>
                   <li>Your IP address must be whitelisted (if IP whitelist is enabled)</li>
                   <li>Domain scoping applies - you can only access domains assigned to your API key</li>
@@ -447,26 +448,26 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           <div>
             <h2 style="margin-bottom: 1.5rem; border-bottom: 2px solid #007bff; padding-bottom: 0.5rem;">API Playground</h2>
             
-            <div style="background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <div style="background: var(--card-bg); padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
               <!-- API Key Input -->
               <div style="margin-bottom: 1.5rem;">
                 <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">API Key</label>
-                <input type="password" id="playground-api-key" placeholder="Enter your API key (sk_live_...)" style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 4px; font-family: monospace;">
-                <div id="api-key-info" style="margin-top: 0.5rem; font-size: 0.875rem; color: #666; display: none;"></div>
+                <input type="password" id="playground-api-key" placeholder="Enter your API key (sk_live_...)" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 4px; font-family: monospace;">
+                <div id="api-key-info" style="margin-top: 0.5rem; font-size: 0.875rem; color: var(--secondary-color); display: none;"></div>
               </div>
               
               <!-- Endpoint Selector -->
               <div style="margin-bottom: 1.5rem;">
                 <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Select Endpoint</label>
-                <select id="playground-endpoint" style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 4px;">
+                <select id="playground-endpoint" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 4px;">
                   <option value="">-- Select an endpoint --</option>
                 </select>
               </div>
               
               <!-- Domain Scoping Warning -->
-              <div id="domain-scoping-warning" style="display: none; margin-bottom: 1.5rem; background: #fff3cd; padding: 1rem; border-radius: 4px; border-left: 4px solid #ffc107;">
-                <p style="margin: 0; color: #856404; font-weight: 600;">⚠️ Domain Scoping Active</p>
-                <p style="margin: 0.5rem 0 0 0; color: #856404; font-size: 0.875rem;" id="domain-scoping-message">This API key is scoped to specific domains.</p>
+              <div id="domain-scoping-warning" style="display: none; margin-bottom: 1.5rem; background: var(--warning-bg); padding: 1rem; border-radius: 4px; border-left: 4px solid #ffc107;">
+                <p style="margin: 0; color: var(--warning-text); font-weight: 600;">⚠️ Domain Scoping Active</p>
+                <p style="margin: 0.5rem 0 0 0; color: var(--warning-text); font-size: 0.875rem;" id="domain-scoping-message">This API key is scoped to specific domains.</p>
               </div>
               
               <!-- Request Builder -->
@@ -481,21 +482,21 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
                 
                 <!-- Request Body -->
                 <div id="playground-request-body" style="margin-bottom: 1rem; display: none;">
-                  <label style="display: block; margin-bottom: 0.5rem; font-size: 0.875rem; color: #666;">Request Body (JSON)</label>
-                  <textarea id="playground-body-editor" style="width: 100%; min-height: 200px; padding: 0.75rem; border: 1px solid #ddd; border-radius: 4px; font-family: monospace; font-size: 0.875rem;" placeholder='{"key": "value"}'></textarea>
+                  <label style="display: block; margin-bottom: 0.5rem; font-size: 0.875rem; color: var(--secondary-color);">Request Body (JSON)</label>
+                  <textarea id="playground-body-editor" style="width: 100%; min-height: 200px; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 4px; font-family: monospace; font-size: 0.875rem;" placeholder='{"key": "value"}'></textarea>
                   <div id="body-validation-errors" style="margin-top: 0.5rem; display: none; background: #f8d7da; padding: 0.75rem; border-radius: 4px; border-left: 4px solid #dc3545;"></div>
                 </div>
                 
                 <!-- Request Validation Errors -->
                 <div id="request-validation-errors" style="margin-bottom: 1rem; display: none; background: #f8d7da; padding: 1rem; border-radius: 4px; border-left: 4px solid #dc3545;">
-                  <p style="margin: 0 0 0.5rem 0; color: #721c24; font-weight: 600;">Validation Errors:</p>
-                  <ul id="validation-errors-list" style="margin: 0; padding-left: 1.5rem; color: #721c24;"></ul>
+                  <p style="margin: 0 0 0.5rem 0; color: var(--error-color); font-weight: 600;">Validation Errors:</p>
+                  <ul id="validation-errors-list" style="margin: 0; padding-left: 1.5rem; color: var(--error-color);"></ul>
                 </div>
                 
                 <!-- File Upload -->
                 <div id="playground-file-upload" style="margin-bottom: 1rem; display: none;">
-                  <label style="display: block; margin-bottom: 0.5rem; font-size: 0.875rem; color: #666;">File Upload</label>
-                  <input type="file" id="playground-file-input" style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+                  <label style="display: block; margin-bottom: 0.5rem; font-size: 0.875rem; color: var(--secondary-color);">File Upload</label>
+                  <input type="file" id="playground-file-input" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;">
                 </div>
                 
                 <!-- Request Preview -->
@@ -555,7 +556,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             <span class="close" id="close-api-key-modal">&times;</span>
             <h2>Select API Key</h2>
             <div style="margin-bottom: 1rem;">
-              <input type="text" id="api-key-search" placeholder="Search API keys..." style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+              <input type="text" id="api-key-search" placeholder="Search API keys..." style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;">
             </div>
             <div class="table-container" style="max-height: 400px; overflow-y: auto;">
               <table class="data-table">
@@ -585,21 +586,21 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             <button id="back-to-links-from-tags" class="btn btn-secondary" style="padding: 0.5rem 1rem;">← Back to Dashboard</button>
             <h1 style="margin: 0;">Manage Tags</h1>
           </div>
-          <div id="create-tag-section" style="display: none; margin-bottom: 1rem; background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <div id="create-tag-section" style="display: none; margin-bottom: 1rem; background: var(--card-bg); padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
             <h2 style="margin-bottom: 1rem;">Create New Tag</h2>
             <div style="display: flex; gap: 0.5rem; align-items: center;">
-              <input type="text" id="new-tag-name" placeholder="Tag name" style="width: 250px; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
-              <input type="color" id="new-tag-color" value="#007bff" style="width: 80px; height: 40px; border: 1px solid #ddd; border-radius: 4px; cursor: pointer;">
+              <input type="text" id="new-tag-name" placeholder="Tag name" style="width: 250px; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;">
+              <input type="color" id="new-tag-color" value="#007bff" style="width: 80px; height: 40px; border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer;">
               <button id="create-tag-btn" class="btn btn-primary">Create</button>
             </div>
           </div>
-          <div style="background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <div style="background: var(--card-bg); padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
               <div style="display: flex; align-items: center; gap: 1rem;">
                 <h2 style="margin: 0;">All Tags</h2>
                 <button id="toggle-create-tag-btn" class="btn btn-primary">+ Add New Tag</button>
               </div>
-              <input type="text" id="tags-search" placeholder="Search tags..." style="padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; width: 250px;">
+              <input type="text" id="tags-search" placeholder="Search tags..." style="padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px; width: 250px;">
             </div>
             <div class="pagination-controls-top">
               <div class="per-page-selector">
@@ -622,20 +623,20 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             <button id="back-to-links-from-categories" class="btn btn-secondary" style="padding: 0.5rem 1rem;">← Back to Dashboard</button>
             <h1 style="margin: 0;">Manage Categories</h1>
           </div>
-          <div id="create-category-section" style="display: none; margin-bottom: 1rem; background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <div id="create-category-section" style="display: none; margin-bottom: 1rem; background: var(--card-bg); padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
             <h2 style="margin-bottom: 1rem;">Create New Category</h2>
             <div style="display: flex; gap: 0.5rem; align-items: center;">
-              <input type="text" id="new-category-name" placeholder="Category name" style="width: 250px; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+              <input type="text" id="new-category-name" placeholder="Category name" style="width: 250px; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;">
               <button id="create-category-btn" class="btn btn-primary">Create</button>
             </div>
           </div>
-          <div style="background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <div style="background: var(--card-bg); padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
               <div style="display: flex; align-items: center; gap: 1rem;">
                 <h2 style="margin: 0;">All Categories</h2>
                 <button id="toggle-create-category-btn" class="btn btn-primary">+ Add New Category</button>
               </div>
-              <input type="text" id="categories-search" placeholder="Search categories..." style="padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; width: 250px;">
+              <input type="text" id="categories-search" placeholder="Search categories..." style="padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px; width: 250px;">
             </div>
             <div class="pagination-controls-top">
               <div class="per-page-selector">
@@ -655,7 +656,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         </div>
         <div id="status-monitor-page" class="page">
           <h1>Link Status Monitor</h1>
-          <div style="background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2rem;">
+          <div style="background: var(--card-bg); padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2rem;">
             <h2 style="margin-bottom: 1rem;">Status Summary</h2>
             <div id="status-summary-cards" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
               <div class="stat-card status-filter-card" style="cursor: pointer;" data-status="200">
@@ -673,11 +674,11 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
 
             </div>
           </div>
-          <div style="background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <div style="background: var(--card-bg); padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 1rem;">
               <h2 style="margin: 0;">Links by Status</h2>
               <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                <select id="status-filter" style="padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+                <select id="status-filter" style="padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;">
                   <option value="">All Status Codes</option>
                   <option value="200">200 OK</option>
                   <option value="301">301 Redirect</option>
@@ -686,10 +687,10 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
                   <option value="500">500 Error</option>
 
                 </select>
-                <select id="status-domain-filter" style="padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+                <select id="status-domain-filter" style="padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;">
                   <option value="">All Domains</option>
                 </select>
-                <input type="text" id="status-search" placeholder="Search destination URL..." style="padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; width: 250px;">
+                <input type="text" id="status-search" placeholder="Search destination URL..." style="padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px; width: 250px;">
                 <button id="recheck-status-btn" class="btn btn-primary" style="display: none;">Recheck Selected</button>
               </div>
             </div>
@@ -710,10 +711,10 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         </div>
         <div id="links-by-destination-page" class="page">
           <h1>Links by Destination URL</h1>
-          <div style="background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2rem;">
+          <div style="background: var(--card-bg); padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2rem;">
             <div style="margin-bottom: 1rem;">
               <button class="btn btn-secondary" id="back-to-link-monitor-btn" style="margin-bottom: 1rem;">← Back to Link Monitor</button>
-              <p id="destination-url-display" style="word-break: break-all; font-size: 1.1rem; color: #495057; margin: 0.5rem 0;"></p>
+              <p id="destination-url-display" style="word-break: break-all; font-size: 1.1rem; color: var(--secondary-color); margin: 0.5rem 0;"></p>
             </div>
             <div id="links-by-destination-list" style="max-height: 600px; overflow-y: auto;"></div>
             <div class="pagination-controls" id="links-by-destination-pagination"></div>
@@ -742,6 +743,12 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           <h1>Analytics Aggregation</h1>
           <div class="settings-content" id="analytics-aggregation-content">
             <p>Loading analytics aggregation settings...</p>
+          </div>
+        </div>
+        <div id="settings-default-page-page" class="page">
+          <h1>Default Page</h1>
+          <div class="settings-content" id="default-page-content">
+            <p>Loading default page settings...</p>
           </div>
         </div>
         <div id="settings-user-management-page" class="page">
@@ -823,7 +830,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           <select id="link-route" required>
             <option value="">Select Route</option>
           </select>
-          <small style="display: block; margin-top: 0.25rem; color: #666;">Select the path prefix for this link</small>
+          <small style="display: block; margin-top: 0.25rem; color: var(--secondary-color);">Select the path prefix for this link</small>
         </div>
         <div class="form-group">
           <label for="link-slug">Slug (optional)</label>
@@ -850,7 +857,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             <option value="307">307 - Temporary Redirect (cached 1 hour)</option>
             <option value="308">308 - Permanent Redirect (cached 1 year)</option>
           </select>
-          <small style="display: block; margin-top: 0.25rem; color: #666;">
+          <small style="display: block; margin-top: 0.25rem; color: var(--secondary-color);">
             <strong>301/308 (Permanent):</strong> Browsers cache for 1 year - use when destination won't change.<br>
             <strong>302/307 (Temporary):</strong> Browsers cache for 1 hour - use for temporary redirects or A/B testing.
           </small>
@@ -865,7 +872,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           <label for="link-tags">Tags (optional)</label>
           <div id="link-tags-container" style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem;"></div>
           <input type="text" id="link-tags-input" placeholder="Type to search or create tags..." style="margin-top: 0.5rem; width: 100%;">
-          <small style="display: block; margin-top: 0.25rem; color: #666;">Select existing tags or create new ones</small>
+          <small style="display: block; margin-top: 0.25rem; color: var(--secondary-color);">Select existing tags or create new ones</small>
         </div>
         
         <!-- Geo Redirects Section -->
@@ -874,20 +881,20 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             <input type="checkbox" id="geo-redirect-enabled">
             Enable Country-Specific Redirects
           </label>
-          <small style="display: block; margin-top: 0.25rem; color: #666;">
+          <small style="display: block; margin-top: 0.25rem; color: var(--secondary-color);">
             Redirect users to different URLs based on their country (max 10 countries)
           </small>
         </div>
-        <div id="geo-redirects-section" style="display: none; margin-top: 1rem; background: #f8f9fa; padding: 1rem; border-radius: 4px;">
+        <div id="geo-redirects-section" style="display: none; margin-top: 1rem; background: var(--bg-color); padding: 1rem; border-radius: 4px;">
           <h4 style="margin: 0 0 0.5rem 0;">Country-Specific Redirects</h4>
-          <p style="margin: 0 0 1rem 0; font-size: 0.875rem; color: #666;">
+          <p style="margin: 0 0 1rem 0; font-size: 0.875rem; color: var(--secondary-color);">
             Users from selected countries will be redirected to their specific URL. Others use the default URL above.
           </p>
           <div id="geo-redirects-list"></div>
           <button type="button" id="add-geo-redirect" class="btn btn-secondary" style="margin-top: 0.5rem;">
             + Add Country
           </button>
-          <small id="geo-count" style="display: block; margin-top: 0.5rem; color: #666;">0 / 10 countries</small>
+          <small id="geo-count" style="display: block; margin-top: 0.5rem; color: var(--secondary-color);">0 / 10 countries</small>
         </div>
 
         <!-- Device Redirects Section -->
@@ -896,13 +903,13 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             <input type="checkbox" id="device-redirect-enabled">
             Enable Device-Specific Redirects
           </label>
-          <small style="display: block; margin-top: 0.25rem; color: #666;">
+          <small style="display: block; margin-top: 0.25rem; color: var(--secondary-color);">
             Redirect users to different URLs based on their device type
           </small>
         </div>
-        <div id="device-redirects-section" style="display: none; margin-top: 1rem; background: #f8f9fa; padding: 1rem; border-radius: 4px;">
+        <div id="device-redirects-section" style="display: none; margin-top: 1rem; background: var(--bg-color); padding: 1rem; border-radius: 4px;">
           <h4 style="margin: 0 0 0.5rem 0;">Device-Specific Redirects</h4>
-          <p style="margin: 0 0 1rem 0; font-size: 0.875rem; color: #666;">
+          <p style="margin: 0 0 1rem 0; font-size: 0.875rem; color: var(--secondary-color);">
             Users on selected device types will be redirected to their specific URL. Leave empty to use default URL.
           </p>
           <div class="form-group">
@@ -925,28 +932,28 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             <input type="checkbox" id="city-redirect-enabled">
             Enable City-Specific Redirects
           </label>
-          <small style="display: block; margin-top: 0.25rem; color: #666;">
+          <small style="display: block; margin-top: 0.25rem; color: var(--secondary-color);">
             Redirect users to different URLs based on their city (max 20 cities)
           </small>
         </div>
-        <div id="city-redirects-section" style="display: none; margin-top: 1rem; background: #f8f9fa; padding: 1rem; border-radius: 4px;">
+        <div id="city-redirects-section" style="display: none; margin-top: 1rem; background: var(--bg-color); padding: 1rem; border-radius: 4px;">
           <h4 style="margin: 0 0 0.5rem 0;">City-Specific Redirects</h4>
-          <p style="margin: 0 0 0.75rem 0; font-size: 0.875rem; color: #666;">
+          <p style="margin: 0 0 0.75rem 0; font-size: 0.875rem; color: var(--secondary-color);">
             Users from specified cities will be redirected to their specific URL. City names must match exactly (case-insensitive).
           </p>
-          <div style="background: #fff8e1; border: 1px solid #ffe082; border-radius: 4px; padding: 0.65rem 0.85rem; margin-bottom: 0.85rem; font-size: 0.8rem; color: #5f4c00; line-height: 1.5;">
+          <div style="background: var(--warning-bg); border: 1px solid #ffe082; border-radius: 4px; padding: 0.65rem 0.85rem; margin-bottom: 0.85rem; font-size: 0.8rem; color: var(--warning-text); line-height: 1.5;">
             <strong>⚠ City names must match Cloudflare's GeoIP format exactly.</strong><br>
             Use full English names — not abbreviations or local names (e.g. <code>Kuala Lumpur</code> not <code>KL</code>, <code>Surakarta</code> not <code>Solo</code>).<br>
             Not sure what name Cloudflare uses for your city?
-            <a href="/api/v1/debug/my-location" target="_blank" rel="noopener" style="color: #b45309; font-weight: 600;">Check your detected city ↗</a>
+            <a href="/api/v1/debug/my-location" target="_blank" rel="noopener" style="color: var(--warning-text); font-weight: 600;">Check your detected city ↗</a>
             &nbsp;·&nbsp;
-            <a href="https://developers.cloudflare.com/fundamentals/reference/http-request-headers/#cf-ipcity" target="_blank" rel="noopener" style="color: #b45309;">Cloudflare docs ↗</a>
+            <a href="https://developers.cloudflare.com/fundamentals/reference/http-request-headers/#cf-ipcity" target="_blank" rel="noopener" style="color: var(--warning-text);">Cloudflare docs ↗</a>
           </div>
           <div id="city-redirects-list"></div>
           <button type="button" id="add-city-redirect" class="btn btn-secondary" style="margin-top: 0.5rem;">
             + Add City
           </button>
-          <small id="city-count" style="display: block; margin-top: 0.5rem; color: #666;">0 / 20 cities</small>
+          <small id="city-count" style="display: block; margin-top: 0.5rem; color: var(--secondary-color);">0 / 20 cities</small>
         </div>
 
         <!-- OS Redirects Section -->
@@ -955,13 +962,13 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             <input type="checkbox" id="os-redirect-enabled">
             Enable OS-Specific Redirects
           </label>
-          <small style="display: block; margin-top: 0.25rem; color: #666;">
+          <small style="display: block; margin-top: 0.25rem; color: var(--secondary-color);">
             Redirect users to different URLs based on their operating system (Android / iOS)
           </small>
         </div>
-        <div id="os-redirects-section" style="display: none; margin-top: 1rem; background: #f8f9fa; padding: 1rem; border-radius: 4px;">
+        <div id="os-redirects-section" style="display: none; margin-top: 1rem; background: var(--bg-color); padding: 1rem; border-radius: 4px;">
           <h4 style="margin: 0 0 0.5rem 0;">OS-Specific Redirects</h4>
-          <p style="margin: 0 0 1rem 0; font-size: 0.875rem; color: #666;">
+          <p style="margin: 0 0 1rem 0; font-size: 0.875rem; color: var(--secondary-color);">
             Users on selected operating systems will be redirected to their specific URL. Leave empty to use default URL.
           </p>
           <div class="form-group">
@@ -993,7 +1000,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           <select id="api-key-domains" multiple style="height: 120px;">
             <option value="">All Domains</option>
           </select>
-          <small style="display: block; margin-top: 0.25rem; color: #666;">Select one or more domains. If none selected, all domains are allowed.</small>
+          <small style="display: block; margin-top: 0.25rem; color: var(--secondary-color);">Select one or more domains. If none selected, all domains are allowed.</small>
         </div>
         <div class="form-group">
           <label>
@@ -1004,7 +1011,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         <div class="form-group" id="api-key-ip-whitelist-group" style="display: none;">
           <label for="api-key-ip-whitelist">IP Whitelist (one per line)</label>
           <textarea id="api-key-ip-whitelist" rows="4" placeholder="192.168.1.1&#10;10.0.0.1&#10;2001:0db8:85a3::8a2e:0370:7334"></textarea>
-          <small style="display: block; margin-top: 0.25rem; color: #666;">Enter one IP address per line. Supports both IPv4 and IPv6 addresses.</small>
+          <small style="display: block; margin-top: 0.25rem; color: var(--secondary-color);">Enter one IP address per line. Supports both IPv4 and IPv6 addresses.</small>
         </div>
         <div class="form-group">
           <label>
@@ -1036,7 +1043,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         <div class="form-group">
           <label for="csv-file">CSV/TSV File</label>
           <input type="file" id="csv-file" accept=".csv,.tsv,.txt" required>
-          <small style="display: block; margin-top: 0.25rem; color: #666;">Select a delimited file to import (CSV, TSV, etc.)</small>
+          <small style="display: block; margin-top: 0.25rem; color: var(--secondary-color);">Select a delimited file to import (CSV, TSV, etc.)</small>
         </div>
         <div class="form-group">
           <label for="csv-delimiter">Field Delimiter</label>
@@ -1048,23 +1055,23 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             <option value="|">Pipe (|)</option>
             <option value="custom">Custom</option>
           </select>
-          <input type="text" id="csv-delimiter-custom" placeholder="Enter custom delimiter" style="display: none; margin-top: 0.5rem; width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
-          <small style="display: block; margin-top: 0.25rem; color: #666;">Select the character that separates fields in your file</small>
+          <input type="text" id="csv-delimiter-custom" placeholder="Enter custom delimiter" style="display: none; margin-top: 0.5rem; width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;">
+          <small style="display: block; margin-top: 0.25rem; color: var(--secondary-color);">Select the character that separates fields in your file</small>
         </div>
         <div class="form-group">
           <label for="import-domain">Domain</label>
           <select id="import-domain" required>
             <option value="">Select Domain</option>
           </select>
-          <small style="display: block; margin-top: 0.25rem; color: #666;">Only one domain per CSV file</small>
+          <small style="display: block; margin-top: 0.25rem; color: var(--secondary-color);">Only one domain per CSV file</small>
         </div>
         <div id="csv-preview-section" style="display: none; margin-top: 1.5rem;">
           <h3 style="margin-bottom: 1rem;">Column Mapping</h3>
-          <div style="background: #f8f9fa; padding: 1rem; border-radius: 4px; margin-bottom: 1rem;">
-            <p style="margin: 0; color: #666; font-size: 0.875rem;">Map CSV columns to link fields. Leave unmapped if not needed.</p>
+          <div style="background: var(--bg-color); padding: 1rem; border-radius: 4px; margin-bottom: 1rem;">
+            <p style="margin: 0; color: var(--secondary-color); font-size: 0.875rem;">Map CSV columns to link fields. Leave unmapped if not needed.</p>
           </div>
           <div id="column-mapping-container" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;"></div>
-          <div style="background: white; padding: 1rem; border-radius: 4px; border: 1px solid #ddd; max-height: 300px; overflow-y: auto;">
+          <div style="background: var(--card-bg); padding: 1rem; border-radius: 4px; border: 1px solid var(--border-color); max-height: 300px; overflow-y: auto;">
             <h4 style="margin-bottom: 0.5rem;">Preview (first 5 rows)</h4>
             <div id="csv-preview-table"></div>
           </div>
@@ -1128,29 +1135,29 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
                  pattern="^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$"
                  maxlength="253"
                  title="Enter a valid domain name (e.g., example.com, subdomain.example.com)">
-          <small style="display: block; margin-top: 0.25rem; color: #666;">Enter the domain name (e.g., example.com)</small>
+          <small style="display: block; margin-top: 0.25rem; color: var(--secondary-color);">Enter the domain name (e.g., example.com)</small>
         </div>
         
         <div class="form-group">
           <label>Routes</label>
           
           <!-- Cloudflare Workers Route Configuration Information -->
-          <div style="background: #e7f3ff; border-left: 4px solid #2196F3; padding: 1rem; margin-bottom: 1rem; border-radius: 4px;">
-            <h4 style="margin: 0 0 0.5rem 0; color: #1976D2; font-size: 1rem;">
+          <div style="background: var(--info-bg); border-left: 4px solid #2196F3; padding: 1rem; margin-bottom: 1rem; border-radius: 4px;">
+            <h4 style="margin: 0 0 0.5rem 0; color: var(--info-text); font-size: 1rem;">
               📋 Cloudflare Workers Route Configuration
             </h4>
             <p style="margin: 0 0 0.5rem 0; font-size: 0.9rem; line-height: 1.5;">
               <strong>Important:</strong> You must also add these domain routes to your Cloudflare Workers settings to ensure they're handled by this application.
             </p>
             <ol style="margin: 0 0 0.5rem 0; padding-left: 1.5rem; font-size: 0.875rem; line-height: 1.6;">
-              <li>Go to <a href="https://dash.cloudflare.com" target="_blank" style="color: #1976D2; text-decoration: underline;">Cloudflare Dashboard</a></li>
+              <li>Go to <a href="https://dash.cloudflare.com" target="_blank" style="color: var(--info-text); text-decoration: underline;">Cloudflare Dashboard</a></li>
               <li>Navigate to <strong>Workers & Pages</strong> → Your Worker → <strong>Settings</strong> → <strong>Triggers</strong></li>
               <li>Add routes matching the ones you configure here (e.g., <code>example.com/go/*</code>)</li>
             </ol>
-            <p style="margin: 0 0 0.5rem 0; font-size: 0.875rem; background: #fff3cd; border-left: 3px solid #ffc107; padding: 0.5rem; border-radius: 3px;">
+            <p style="margin: 0 0 0.5rem 0; font-size: 0.875rem; background: var(--warning-bg); border-left: 3px solid #ffc107; padding: 0.5rem; border-radius: 3px;">
               ⚠️ <strong>Avoid Conflicts:</strong> Ensure your routes don't clash with existing website paths. Use unique path prefixes (e.g., <code>/go/*</code>, <code>/r/*</code>, <code>/link/*</code>) that aren't used by your main website.
             </p>
-            <p style="margin: 0.5rem 0 0 0; font-size: 0.875rem; background: #e8f5e9; border-left: 3px solid #4caf50; padding: 0.5rem; border-radius: 3px;">
+            <p style="margin: 0.5rem 0 0 0; font-size: 0.875rem; background: var(--success-bg); border-left: 3px solid #4caf50; padding: 0.5rem; border-radius: 3px;">
               💡 <strong>Using the Entire Domain:</strong> You can use <code>/*</code> as a route to handle all paths on the domain without additional prefixes (e.g., <code>example.com/*</code>). <strong>Only use this if there's no existing website on this domain</strong>, as it will intercept all traffic.
             </p>
           </div>
@@ -1159,7 +1166,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             <!-- Routes will be added dynamically -->
           </div>
           <button type="button" id="add-route-btn" class="btn btn-secondary" style="margin-top: 0.5rem;">+ Add Route</button>
-          <small style="display: block; margin-top: 0.25rem; color: #666;">Add routing paths (e.g., /go/*, /r/*). At least one route is required.</small>
+          <small style="display: block; margin-top: 0.25rem; color: var(--secondary-color);">Add routing paths (e.g., /go/*, /r/*). At least one route is required.</small>
         </div>
         
         <div class="form-group">
@@ -1170,7 +1177,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             <option value="307">307 - Temporary Redirect (cached 1 hour)</option>
             <option value="308">308 - Permanent Redirect (cached 1 year)</option>
           </select>
-          <small style="display: block; margin-top: 0.25rem; color: #666;">
+          <small style="display: block; margin-top: 0.25rem; color: var(--secondary-color);">
             Default HTTP redirect status code for all links on this domain. Individual links can override this.<br>
             <strong>301/308 (Permanent):</strong> Cached 1 year - use when destinations are permanent.<br>
             <strong>302/307 (Temporary):</strong> Cached 1 hour - use for temporary redirects.
@@ -1547,6 +1554,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             'settings-security',
             'settings-status-check',
             'settings-analytics-aggregation',
+            'settings-default-page',
             'settings-user-management',
             'settings-audit-log',
             'help',
@@ -1627,6 +1635,9 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         else if (pageName === 'settings-analytics-aggregation') {
           loadAnalyticsAggregationPage();
         }
+        else if (pageName === 'settings-default-page') {
+          loadDefaultPagePage();
+        }
         else if (pageName === 'settings-user-management') {
           loadUserManagementPage();
         }
@@ -1689,7 +1700,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         '<tr>' +
           '<td colspan="' + colspan + '" style="text-align: center; padding: 2rem;">' +
             '<div style="' +
-              'border: 3px solid #f3f3f3;' +
+              'border: 3px solid var(--border-color);' +
               'border-top: 3px solid #3498db;' +
               'border-radius: 50%;' +
               'width: 40px;' +
@@ -1753,11 +1764,11 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           tbody.innerHTML = '<tr><td colspan="7">No links found</td></tr>';
         } else {
           tbody.innerHTML = links.map(link => {
-            const category = link.category ? '<span class="category-badge" style="background: #e7f3ff; color: #004085; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem;">' + escapeHtml(link.category.name) + '</span>' : '';
+            const category = link.category ? '<span class="category-badge" style="background: var(--info-bg); color: var(--info-text); padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem;">' + escapeHtml(link.category.name) + '</span>' : '';
             const titleOrUrl = link.title || link.destination_url;
             const truncatedTitle = titleOrUrl.substring(0, 50) + (titleOrUrl.length > 50 ? '...' : '');
             const linkIdEscaped = escapeAttr(link.id);
-            const categoryDisplay = category || '<span style="color: #999;">No category</span>';
+            const categoryDisplay = category || '<span style="color: var(--secondary-color);">No category</span>';
             
             // Extract route from metadata; fall back to the domain's routing_path
             // so legacy/API-created links without a stored route still display
@@ -2409,6 +2420,12 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         const user = await response.json();
         if (user.success && user.data) {
           // DEBUG: console.log('Authenticated as:', user.data.username || user.data.email);
+          // #11: if the admin flagged this account to change its password, force it
+          // now and halt normal dashboard init until it's done.
+          if (user.data.must_change_password) {
+            showForcedPasswordChange();
+            return false;
+          }
           return true;
         } else {
           // DEBUG: console.log('Invalid auth response, redirecting to login');
@@ -2425,6 +2442,70 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       }
     }
     
+    // #11: Full-screen, non-dismissable overlay that forces a password change.
+    // Shown when /auth/me reports must_change_password. The server also blocks all
+    // other API calls (403 PASSWORD_CHANGE_REQUIRED) until the change succeeds.
+    function showForcedPasswordChange() {
+      if (document.getElementById('forced-password-overlay')) return;
+      const overlay = document.createElement('div');
+      overlay.id = 'forced-password-overlay';
+      overlay.style.cssText = 'position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 100000; display: flex; align-items: center; justify-content: center; padding: 1rem;';
+      overlay.innerHTML =
+        '<div style="background: var(--card-bg); max-width: 420px; width: 100%; border-radius: 8px; padding: 2rem; box-shadow: 0 8px 24px rgba(0,0,0,0.2);">' +
+        '<h2 style="margin: 0 0 0.5rem;">Change your password</h2>' +
+        '<p style="color: var(--secondary-color); margin: 0 0 1.5rem; font-size: 0.9rem;">For security, you must set a new password before continuing.</p>' +
+        '<form id="forced-password-form">' +
+          '<div class="form-group">' +
+            '<label for="forced-current-password">Current Password</label>' +
+            '<input type="password" id="forced-current-password" required style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;">' +
+          '</div>' +
+          '<div class="form-group" style="margin-top: 1rem;">' +
+            '<label for="forced-new-password">New Password</label>' +
+            '<input type="password" id="forced-new-password" required minlength="12" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;">' +
+            '<small style="display: block; margin-top: 0.25rem; color: var(--secondary-color);">At least 12 characters with uppercase, lowercase, number, and special character.</small>' +
+          '</div>' +
+          '<div class="form-group" style="margin-top: 1rem;">' +
+            '<label for="forced-confirm-password">Confirm New Password</label>' +
+            '<input type="password" id="forced-confirm-password" required style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;">' +
+          '</div>' +
+          '<div id="forced-password-error" style="color: #dc3545; margin-top: 1rem; display: none;"></div>' +
+          '<button type="submit" class="btn btn-primary" style="margin-top: 1.5rem; width: 100%;">Set New Password</button>' +
+        '</form>' +
+        '</div>';
+      document.body.appendChild(overlay);
+
+      const form = document.getElementById('forced-password-form');
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const errorDiv = document.getElementById('forced-password-error');
+        errorDiv.style.display = 'none';
+        const current = document.getElementById('forced-current-password').value;
+        const next = document.getElementById('forced-new-password').value;
+        const confirm = document.getElementById('forced-confirm-password').value;
+        if (next !== confirm) {
+          errorDiv.textContent = 'New passwords do not match';
+          errorDiv.style.display = 'block';
+          return;
+        }
+        if (next.length < 12) {
+          errorDiv.textContent = 'Password must be at least 12 characters long';
+          errorDiv.style.display = 'block';
+          return;
+        }
+        try {
+          await apiRequest('/auth/change-password', {
+            method: 'POST',
+            body: JSON.stringify({ current_password: current, new_password: next }),
+          });
+          // Password changed (flag cleared server-side) — reload into the normal dashboard.
+          window.location.reload();
+        } catch (error) {
+          errorDiv.textContent = error.message || 'Failed to change password';
+          errorDiv.style.display = 'block';
+        }
+      });
+    }
+
     // ============================================================================
     // UI COMPONENTS & HELPERS - Reusable UI Functions
     // ============================================================================
@@ -2928,7 +3009,9 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
     async function loadCategories() {
       try {
         const domainId = document.getElementById('domain-selector')?.value;
-        const params = domainId ? '?domain_id=' + domainId : '';
+        // Request a high limit so the selection dropdown shows ALL categories.
+        // The API defaults to 25 (max 500); without this only the first 25 appear (#18).
+        const params = domainId ? '?limit=500&domain_id=' + domainId : '?limit=500';
         const categories = await apiRequest('/categories' + params);
         allCategories = categories.data || [];
         updateCategoriesUI();
@@ -2957,7 +3040,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       const allTagsItem = document.createElement('div');
       allTagsItem.className = 'dropdown-item';
       allTagsItem.setAttribute('data-value', '');
-      allTagsItem.style.cssText = 'padding: 0.5rem; cursor: pointer; border-bottom: 1px solid #f0f0f0;';
+      allTagsItem.style.cssText = 'padding: 0.5rem; cursor: pointer; border-bottom: 1px solid var(--border-color);';
       allTagsItem.textContent = 'All Tags';
       allTagsItem.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -2974,7 +3057,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         const item = document.createElement('div');
         item.className = 'dropdown-item';
         item.setAttribute('data-value', tag.id);
-        item.style.cssText = 'padding: 0.5rem; cursor: pointer; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; gap: 0.5rem;';
+        item.style.cssText = 'padding: 0.5rem; cursor: pointer; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; gap: 0.5rem;';
         item.innerHTML = '<span style="width: 12px; height: 12px; border-radius: 2px; background: ' + (tag.color || '#007bff') + '; display: inline-block;"></span><span>' + tag.name + '</span>';
         item.addEventListener('click', () => {
           document.getElementById('tag-filter').value = tag.id;
@@ -3013,7 +3096,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       const allCategoriesItem = document.createElement('div');
       allCategoriesItem.className = 'dropdown-item';
       allCategoriesItem.setAttribute('data-value', '');
-      allCategoriesItem.style.cssText = 'padding: 0.5rem; cursor: pointer; border-bottom: 1px solid #f0f0f0;';
+      allCategoriesItem.style.cssText = 'padding: 0.5rem; cursor: pointer; border-bottom: 1px solid var(--border-color);';
       allCategoriesItem.textContent = 'All Categories';
       allCategoriesItem.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -3029,7 +3112,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         const item = document.createElement('div');
         item.className = 'dropdown-item';
         item.setAttribute('data-value', cat.id);
-        item.style.cssText = 'padding: 0.5rem; cursor: pointer; border-bottom: 1px solid #f0f0f0;';
+        item.style.cssText = 'padding: 0.5rem; cursor: pointer; border-bottom: 1px solid var(--border-color);';
         item.textContent = cat.name;
         item.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -3146,7 +3229,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       if (!autocompleteContainer) {
         autocompleteContainer = document.createElement('div');
         autocompleteContainer.id = 'tags-autocomplete';
-        autocompleteContainer.style.cssText = 'position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ddd; border-radius: 4px; max-height: 200px; overflow-y: auto; z-index: 1000; display: none; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-top: 0.25rem;';
+        autocompleteContainer.style.cssText = 'position: absolute; top: 100%; left: 0; right: 0; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 4px; max-height: 200px; overflow-y: auto; z-index: 1000; display: none; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-top: 0.25rem;';
         input.parentNode.appendChild(autocompleteContainer);
       }
       
@@ -3171,7 +3254,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           const tagColorEscaped = escapeAttr(tag.color || '#007bff');
           // Use data attribute instead of inline onclick to avoid escaping issues
           // Use double quotes for style attribute values to avoid escaping issues
-          return '<div style="padding: 0.5rem; cursor: pointer; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; gap: 0.5rem;" data-tag-id="' + tagIdEscaped + '" data-hover-bg="#f0f0f0" data-normal-bg="white">' +
+          return '<div style="padding: 0.5rem; cursor: pointer; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; gap: 0.5rem;" data-tag-id="' + tagIdEscaped + '" data-hover-bg="#f0f0f0" data-normal-bg="white">' +
             '<span style="width: 12px; height: 12px; border-radius: 2px; background: ' + tagColorEscaped + '; display: inline-block;"></span>' +
             '<span>' + tagNameEscaped + '</span>' +
           '</div>';
@@ -3643,10 +3726,10 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           // View mode
           const catIdEscaped = escapeAttr(cat.id);
           const catNameEscaped = escapeHtml(cat.name);
-          return '<div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: #f8f9fa; border-radius: 4px; margin-bottom: 0.5rem;">' +
+          return '<div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: var(--bg-color); border-radius: 4px; margin-bottom: 0.5rem;">' +
           '<div style="display: flex; align-items: center; gap: 0.5rem;">' +
               '<span style="font-weight: 500;">' + catNameEscaped + '</span>' +
-            '<span style="color: #666; font-size: 0.875rem;">' + (cat.domain_id ? 'Domain-specific' : 'Global') + '</span>' +
+            '<span style="color: var(--secondary-color); font-size: 0.875rem;">' + (cat.domain_id ? 'Domain-specific' : 'Global') + '</span>' +
           '</div>' +
             '<div style="display: flex; gap: 0.5rem;">' +
               '<button class="btn btn-sm btn-primary" data-action="edit-category" data-category-id="' + catIdEscaped + '">Edit</button>' +
@@ -3924,7 +4007,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       routesContainer.innerHTML = domainRoutes.map((route, index) => {
         const routeValue = escapeAttr(route);
         return '<div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;" data-route-index="' + index + '">' +
-          '<input type="text" class="route-input" data-index="' + index + '" value="' + routeValue + '" placeholder="/go/*" style="flex: 1; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;" required>' +
+          '<input type="text" class="route-input" data-index="' + index + '" value="' + routeValue + '" placeholder="/go/*" style="flex: 1; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;" required>' +
           (domainRoutes.length > 1 ? 
             '<button type="button" class="btn btn-secondary remove-route-btn" data-index="' + index + '" style="padding: 0.5rem 1rem;">Remove</button>' 
             : '') +
@@ -4017,7 +4100,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         }
         
         // Domain name validation regex (same as backend)
-        const domainNameRegex = /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/;
+        const domainNameRegex = /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?[.])+[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/;
         if (!domainNameRegex.test(domainName)) {
           showToast('Invalid domain name format. Domain must be valid (e.g., example.com, subdomain.example.com)', 'error');
           return;
@@ -4218,9 +4301,9 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       if (!container) return;
       
       // Show loading indicator immediately
-      container.innerHTML = '<div style="text-align: center; padding: 3rem; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">' +
-        '<div style="display: inline-block; width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #007bff; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 1rem;"></div>' +
-        '<p style="color: #666; margin: 0;">Loading domains...</p>' +
+      container.innerHTML = '<div style="text-align: center; padding: 3rem; background: var(--card-bg); border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">' +
+        '<div style="display: inline-block; width: 40px; height: 40px; border: 4px solid var(--border-color); border-top: 4px solid #007bff; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 1rem;"></div>' +
+        '<p style="color: var(--secondary-color); margin: 0;">Loading domains...</p>' +
         '</div>';
       
       try {
@@ -5126,7 +5209,8 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
     // Helper to load categories for filter dropdown
     async function loadCategoriesForFilter(selectId) {
       try {
-        const categories = await apiRequest('/categories');
+        // limit=500 so the filter lists all categories, not just the API default of 25 (#18).
+        const categories = await apiRequest('/categories?limit=500');
         const select = document.getElementById(selectId);
         if (!select) return;
 
@@ -5295,7 +5379,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             });
           }
         } else {
-          content.innerHTML = html + '<p style="text-align: center; color: #666; padding: 2rem;">No geography data available for the selected filters.</p>';
+          content.innerHTML = html + '<p style="text-align: center; color: var(--secondary-color); padding: 2rem;">No geography data available for the selected filters.</p>';
         }
       } catch (error) {
         content.innerHTML = '<p style="color: #dc3545;">Error loading geography analytics: ' + escapeHtml(error.message) + '</p>';
@@ -5455,7 +5539,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             });
           }
         } else {
-          content.innerHTML = html + '<p style="text-align: center; color: #666; padding: 2rem;">No devices data available for the selected filters.</p>';
+          content.innerHTML = html + '<p style="text-align: center; color: var(--secondary-color); padding: 2rem;">No devices data available for the selected filters.</p>';
         }
       } catch (error) {
         content.innerHTML = '<p style="color: #dc3545;">Error loading devices analytics: ' + escapeHtml(error.message) + '</p>';
@@ -5595,7 +5679,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             });
           }
         } else {
-          content.innerHTML = html + '<p style="text-align: center; color: #666; padding: 2rem;">No referrers data available for the selected filters.</p>';
+          content.innerHTML = html + '<p style="text-align: center; color: var(--secondary-color); padding: 2rem;">No referrers data available for the selected filters.</p>';
         }
       } catch (error) {
         content.innerHTML = '<p style="color: #dc3545;">Error loading referrers analytics: ' + escapeHtml(error.message) + '</p>';
@@ -5714,7 +5798,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
 
           content.innerHTML = html;
         } else {
-          content.innerHTML = html + '<p style="text-align: center; color: #666; padding: 2rem;">No UTM data available for the selected filters.</p>';
+          content.innerHTML = html + '<p style="text-align: center; color: var(--secondary-color); padding: 2rem;">No UTM data available for the selected filters.</p>';
         }
       } catch (error) {
         content.innerHTML = '<p style="color: #dc3545;">Error loading UTM analytics: ' + escapeHtml(error.message) + '</p>';
@@ -5840,7 +5924,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
               '<tbody>' + paramRows + '</tbody>' +
               '</table>';
           } else {
-            paramContent += '<p style="text-align: center; color: #666; padding: 2rem;">No data available for this parameter.</p>';
+            paramContent += '<p style="text-align: center; color: var(--secondary-color); padding: 2rem;">No data available for this parameter.</p>';
           }
 
           paramContent += '</div></div>';
@@ -5998,7 +6082,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             });
           }
         } else {
-          content.innerHTML = html + '<p style="text-align: center; color: #666; padding: 2rem;">No OS data available for the selected filters.</p>';
+          content.innerHTML = html + '<p style="text-align: center; color: var(--secondary-color); padding: 2rem;">No OS data available for the selected filters.</p>';
         }
       } catch (error) {
         content.innerHTML = '<p style="color: #dc3545;">Error loading OS analytics: ' + escapeHtml(error.message) + '</p>';
@@ -6139,7 +6223,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             });
           }
         } else {
-          content.innerHTML = html + '<p style="text-align: center; color: #666; padding: 2rem;">No browsers data available for the selected filters.</p>';
+          content.innerHTML = html + '<p style="text-align: center; color: var(--secondary-color); padding: 2rem;">No browsers data available for the selected filters.</p>';
         }
       } catch (error) {
         content.innerHTML = '<p style="color: #dc3545;">Error loading browsers analytics: ' + escapeHtml(error.message) + '</p>';
@@ -6217,6 +6301,112 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       }
     }
     
+    // #12: Default page settings — admin/owner only.
+    async function loadDefaultPagePage() {
+      try {
+        const user = await apiRequest('/auth/me');
+        const userData = user.data || {};
+        const isAdminOrOwner = userData.role === 'owner' || userData.role === 'admin';
+        if (!isAdminOrOwner) {
+          const content = document.getElementById('default-page-content');
+          if (content) {
+            content.innerHTML = '<p style="color: #dc3545;">Access denied. Admin or owner role required.</p>';
+          }
+          return;
+        }
+        await loadDefaultPageSection();
+      } catch (error) {
+        const content = document.getElementById('default-page-content');
+        if (content) {
+          content.innerHTML = '<p style="color: #dc3545;">Failed to load default page settings: ' + error.message + '</p>';
+        }
+      }
+    }
+
+    async function loadDefaultPageSection() {
+      const content = document.getElementById('default-page-content');
+      if (!content) return;
+
+      const resp = await apiRequest('/settings/root-page');
+      const settings = resp.data || { mode: 'branded', html: '', redirect_url: '' };
+
+      content.innerHTML = '<div class="settings-card">' +
+        '<h3 style="margin-bottom: 0.5rem; color: var(--text-color);">Route Landing Page</h3>' +
+        '<p style="color: var(--secondary-color); margin-bottom: 1.5rem; font-size: 0.9rem;">Choose what visitors see when they open the base of a domain route (the route you set in Domain settings) with no short link after it &mdash; e.g. https://your-domain/go/ for a /go/* route, or https://your-domain/ when the route is /*. Previously this showed &quot;Slug required&quot;.</p>' +
+        '<div class="form-group">' +
+          '<label for="default-page-mode">Mode</label>' +
+          '<select id="default-page-mode" class="settings-input">' +
+            '<option value="branded">Built-in branded page (default)</option>' +
+            '<option value="html">Custom HTML</option>' +
+            '<option value="redirect">Redirect to a URL</option>' +
+          '</select>' +
+        '</div>' +
+        '<div class="form-group" id="default-page-html-group" style="margin-top: 1rem; display: none;">' +
+          '<label for="default-page-html">Custom HTML</label>' +
+          '<textarea id="default-page-html" rows="12" style="width: 100%; font-family: monospace; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;" placeholder="<!DOCTYPE html>..."></textarea>' +
+          '<small style="display: block; margin-top: 0.25rem; color: var(--secondary-color);">Served as-is with Content-Type: text/html. Only admins can set this.</small>' +
+        '</div>' +
+        '<div class="form-group" id="default-page-redirect-group" style="margin-top: 1rem; display: none;">' +
+          '<label for="default-page-redirect-url">Redirect URL</label>' +
+          '<input type="url" id="default-page-redirect-url" class="settings-input" placeholder="https://example.com">' +
+          '<small style="display: block; margin-top: 0.25rem; color: var(--secondary-color);">Root visitors get a 302 redirect here.</small>' +
+        '</div>' +
+        '<div id="default-page-error" style="color: var(--error-color); margin-top: 1rem; display: none;"></div>' +
+        '<div id="default-page-success" style="color: var(--success-color); margin-top: 1rem; display: none;"></div>' +
+        '<button id="save-default-page-btn" class="btn btn-primary" style="margin-top: 1.5rem;">Save</button>' +
+        '</div>';
+
+      const modeSelect = document.getElementById('default-page-mode');
+      const htmlGroup = document.getElementById('default-page-html-group');
+      const redirectGroup = document.getElementById('default-page-redirect-group');
+      const htmlInput = document.getElementById('default-page-html');
+      const redirectInput = document.getElementById('default-page-redirect-url');
+
+      // Populate from saved settings (use .value, not innerHTML, so HTML isn't interpreted)
+      modeSelect.value = settings.mode || 'branded';
+      htmlInput.value = settings.html || '';
+      redirectInput.value = settings.redirect_url || '';
+
+      const syncVisibility = () => {
+        htmlGroup.style.display = modeSelect.value === 'html' ? 'block' : 'none';
+        redirectGroup.style.display = modeSelect.value === 'redirect' ? 'block' : 'none';
+      };
+      syncVisibility();
+      modeSelect.addEventListener('change', syncVisibility);
+
+      document.getElementById('save-default-page-btn').addEventListener('click', async () => {
+        const errorDiv = document.getElementById('default-page-error');
+        const successDiv = document.getElementById('default-page-success');
+        errorDiv.style.display = 'none';
+        successDiv.style.display = 'none';
+
+        const mode = modeSelect.value;
+        const payload = {
+          mode,
+          html: htmlInput.value,
+          redirect_url: redirectInput.value.trim(),
+        };
+
+        if (mode === 'redirect' && !payload.redirect_url) {
+          errorDiv.textContent = 'A redirect URL is required when mode is "Redirect to a URL".';
+          errorDiv.style.display = 'block';
+          return;
+        }
+
+        try {
+          await apiRequest('/settings/root-page', {
+            method: 'PUT',
+            body: JSON.stringify(payload),
+          });
+          successDiv.textContent = 'Default page settings saved.';
+          successDiv.style.display = 'block';
+        } catch (error) {
+          errorDiv.textContent = error.message || 'Failed to save settings';
+          errorDiv.style.display = 'block';
+        }
+      });
+    }
+
     async function loadUserManagementPage() {
       try {
         const user = await apiRequest('/auth/me');
@@ -6270,6 +6460,12 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         const analyticsLink = document.getElementById('settings-analytics-aggregation-link');
         if (analyticsLink) {
           analyticsLink.style.display = isAdminOrOwner ? 'block' : 'none';
+        }
+
+        // Show/hide default page menu link (#12, admin/owner only)
+        const defaultPageLink = document.getElementById('settings-default-page-link');
+        if (defaultPageLink) {
+          defaultPageLink.style.display = isAdminOrOwner ? 'block' : 'none';
         }
         
         // Show/hide user management menu link (pages are controlled by CSS .page class)
@@ -6449,7 +6645,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         const linksPerWeek = linksPerDay * 7;
         
         let html = '<div style="display: grid; gap: 2rem;">';
-        html += '<div style="background: #f8f9fa; padding: 1.5rem; border-radius: 8px;">';
+        html += '<div style="background: var(--bg-color); padding: 1.5rem; border-radius: 8px;">';
         html += '<h3 style="margin-bottom: 1rem;">Status Check Settings</h3>';
         html += '<div style="display: grid; gap: 1rem;">';
         
@@ -6463,23 +6659,23 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         html += '<div class="form-group">';
         html += '<label for="status-check-frequency-value">Check Frequency:</label>';
         html += '<div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem;">';
-        html += '<input type="number" id="status-check-frequency-value" min="1" max="365" value="' + frequency.value + '" style="width: 100px; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">';
-        html += '<select id="status-check-frequency-unit" style="padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">';
+        html += '<input type="number" id="status-check-frequency-value" min="1" max="365" value="' + frequency.value + '" style="width: 100px; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;">';
+        html += '<select id="status-check-frequency-unit" style="padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;">';
         html += '<option value="days" ' + (frequency.unit === 'days' ? 'selected' : '') + '>Days</option>';
         html += '<option value="weeks" ' + (frequency.unit === 'weeks' ? 'selected' : '') + '>Weeks</option>';
         html += '</select>';
         html += '</div>';
-        html += '<small style="color: #666; display: block; margin-top: 0.25rem;">How often each link should be checked (1-365 days or weeks)</small>';
+        html += '<small style="color: var(--secondary-color); display: block; margin-top: 0.25rem;">How often each link should be checked (1-365 days or weeks)</small>';
         html += '</div>';
         
         // Batch size input
         html += '<div class="form-group">';
         html += '<label for="status-check-batch-size">Links Per Cron Run:</label>';
-        html += '<input type="number" id="status-check-batch-size" min="10" max="1000" value="' + batchSize + '" style="width: 150px; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; margin-top: 0.5rem;">';
-        html += '<small style="color: #666; display: block; margin-top: 0.25rem;">Number of links to check each time the cron job runs (10-1000). Recommended: 50-200</small>';
-        html += '<div style="background: #fff3cd; border: 1px solid #ffc107; padding: 0.75rem; border-radius: 4px; margin-top: 0.5rem;">';
-        html += '<strong style="color: #856404; display: block; margin-bottom: 0.25rem;">⚠️ Cloudflare Workers Free Plan Warning:</strong>';
-        html += '<div style="font-size: 0.85rem; color: #856404;">';
+        html += '<input type="number" id="status-check-batch-size" min="10" max="1000" value="' + batchSize + '" style="width: 150px; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px; margin-top: 0.5rem;">';
+        html += '<small style="color: var(--secondary-color); display: block; margin-top: 0.25rem;">Number of links to check each time the cron job runs (10-1000). Recommended: 50-200</small>';
+        html += '<div style="background: var(--warning-bg); border: 1px solid #ffc107; padding: 0.75rem; border-radius: 4px; margin-top: 0.5rem;">';
+        html += '<strong style="color: var(--warning-text); display: block; margin-bottom: 0.25rem;">⚠️ Cloudflare Workers Free Plan Warning:</strong>';
+        html += '<div style="font-size: 0.85rem; color: var(--warning-text);">';
         html += 'The Free plan has a <strong>10ms CPU limit</strong> per invocation. Processing many links may exceed this limit.<br>';
         html += '<strong>Recommended for Free plan:</strong> 5-10 links per cron run. If you need higher throughput, run the cron more frequently (e.g., every hour) or upgrade to the Paid plan.<br>';
         html += 'If you see "CPU Limit Exceeded" errors in your logs, reduce this value.';
@@ -6633,9 +6829,9 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         html += '</div>';
         
         // CPU usage warning for Free plan
-        html += '<div style="background: #fff3cd; border: 1px solid #ffc107; padding: 0.75rem; border-radius: 4px; margin-top: 0.5rem;">';
-        html += '<strong style="color: #856404; display: block; margin-bottom: 0.25rem;">⚠️ Cloudflare Workers Free Plan Warning:</strong>';
-        html += '<div style="font-size: 0.85rem; color: #856404; line-height: 1.6;">';
+        html += '<div style="background: var(--warning-bg); border: 1px solid #ffc107; padding: 0.75rem; border-radius: 4px; margin-top: 0.5rem;">';
+        html += '<strong style="color: var(--warning-text); display: block; margin-bottom: 0.25rem;">⚠️ Cloudflare Workers Free Plan Warning:</strong>';
+        html += '<div style="font-size: 0.85rem; color: var(--warning-text); line-height: 1.6;">';
         html += 'The Free plan has a <strong>10ms CPU limit</strong> per invocation. The daily aggregation job processes one day of click data from <strong>X days ago</strong>, where X is your Data Source Threshold setting (configured below).<br><br>';
         html += '<strong>Example:</strong> With threshold = 83 days, the cron aggregates data from 83 days ago.<br><br>';
         html += '<strong>CPU Usage Estimates:</strong><br>';
@@ -6665,8 +6861,8 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         const aggregationDateStr = aggregationDate.toISOString().split('T')[0];
         const bufferDays = 90 - threshold;
         html += '<div id="aggregation-schedule-info" class="help-box" style="margin-top: 1rem; background: #f0f9ff; border: 1px solid #bae6fd; padding: 0.75rem; border-radius: 0.5rem;">';
-        html += '<strong style="display: block; margin-bottom: 0.5rem; color: #0369a1;">Aggregation Schedule:</strong>';
-        html += '<p id="aggregation-schedule-text" style="font-size: 0.9rem; line-height: 1.6; margin: 0; color: #0c4a6e;">With threshold set to <strong>' + threshold + ' days</strong>, the daily aggregation job (runs at midnight UTC) will process data from <strong>' + aggregationDateStr + '</strong> (exactly ' + threshold + ' days ago). Each day, it aggregates one day of data that has reached the threshold age. <strong>Safety buffer: ' + bufferDays + ' days</strong> before data expires from Analytics Engine (90-day retention).</p>';
+        html += '<strong style="display: block; margin-bottom: 0.5rem; color: var(--info-text);">Aggregation Schedule:</strong>';
+        html += '<p id="aggregation-schedule-text" style="font-size: 0.9rem; line-height: 1.6; margin: 0; color: var(--info-text);">With threshold set to <strong>' + threshold + ' days</strong>, the daily aggregation job (runs at midnight UTC) will process data from <strong>' + aggregationDateStr + '</strong> (exactly ' + threshold + ' days ago). Each day, it aggregates one day of data that has reached the threshold age. <strong>Safety buffer: ' + bufferDays + ' days</strong> before data expires from Analytics Engine (90-day retention).</p>';
         html += '</div>';
         
         html += '<div class="warning-box" style="margin-top: 1rem;">';
@@ -6898,7 +7094,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         '<div class="form-group">' +
         '<label for="user-username">Username *</label>' +
         '<input type="text" id="user-username" required pattern="[a-zA-Z0-9_-]+" minlength="3" maxlength="50" placeholder="username">' +
-        '<small style="display: block; margin-top: 0.25rem; color: #666;">Letters, numbers, underscore, and hyphen only (3-50 characters)</small>' +
+        '<small style="display: block; margin-top: 0.25rem; color: var(--secondary-color);">Letters, numbers, underscore, and hyphen only (3-50 characters)</small>' +
         '</div>' +
         '<div class="form-group">' +
         '<label for="user-email">Email (optional)</label>' +
@@ -6907,7 +7103,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         '<div class="form-group">' +
         '<label for="user-password">Password *</label>' +
         '<input type="password" id="user-password" required minlength="12" placeholder="Minimum 12 characters">' +
-        '<small style="display: block; margin-top: 0.25rem; color: #666;">Must contain uppercase, lowercase, number, and special character</small>' +
+        '<small style="display: block; margin-top: 0.25rem; color: var(--secondary-color);">Must contain uppercase, lowercase, number, and special character</small>' +
         '</div>' +
         '<div class="form-group">' +
         '<label for="user-role">Role *</label>' +
@@ -6916,20 +7112,27 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         '<option value="analyst">Analyst</option>' +
         '<option value="admin">Admin</option>' +
         '</select>' +
-        '<small style="display: block; margin-top: 0.25rem; color: #666;">Admin has full access. User can manage links. Analyst can only view analytics.</small>' +
+        '<small style="display: block; margin-top: 0.25rem; color: var(--secondary-color);">Admin has full access. User can manage links. Analyst can only view analytics.</small>' +
         '</div>' +
         '<div class="form-group">' +
         '<label>' +
         '<input type="checkbox" id="user-global-access">' +
         'Global Access (Access to all domains)' +
         '</label>' +
-        '<small style="display: block; margin-top: 0.25rem; color: #666;">If unchecked, select specific domains below</small>' +
+        '<small style="display: block; margin-top: 0.25rem; color: var(--secondary-color);">If unchecked, select specific domains below</small>' +
         '</div>' +
         '<div class="form-group" id="user-domain-access-group">' +
         '<label for="user-domains">Domain Access</label>' +
         '<select id="user-domains" multiple style="height: 150px;">' +
         '</select>' +
-        '<small style="display: block; margin-top: 0.25rem; color: #666;">Select one or more domains. Required if Global Access is disabled.</small>' +
+        '<small style="display: block; margin-top: 0.25rem; color: var(--secondary-color);">Select one or more domains. Required if Global Access is disabled.</small>' +
+        '</div>' +
+        '<div class="form-group">' +
+        '<label>' +
+        '<input type="checkbox" id="user-must-change-password">' +
+        'Require password change on next login' +
+        '</label>' +
+        '<small style="display: block; margin-top: 0.25rem; color: var(--secondary-color);">User must set a new password before using the dashboard.</small>' +
         '</div>' +
         '<div id="user-form-error" style="color: #dc3545; margin-top: 1rem; display: none;"></div>' +
         '<div style="display: flex; gap: 0.5rem; margin-top: 1.5rem;">' +
@@ -7007,6 +7210,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         const password = document.getElementById('user-password')?.value;
         const role = document.getElementById('user-role')?.value;
         const globalAccess = document.getElementById('user-global-access')?.checked || false;
+        const mustChangePassword = document.getElementById('user-must-change-password')?.checked || false;
         const domainSelect = document.getElementById('user-domains');
         const selectedDomains = Array.from(domainSelect?.selectedOptions || [])
           .map(opt => opt.value)
@@ -7025,8 +7229,9 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             username,
             role,
             global_access: globalAccess,
+            must_change_password: mustChangePassword,
           };
-          
+
           if (email) updateData.email = email;
           if (password && password.length > 0) {
             if (password.length < 12) {
@@ -7065,8 +7270,9 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             password,
             role,
             global_access: globalAccess,
+            must_change_password: mustChangePassword,
           };
-          
+
           if (email) createData.email = email;
           if (!globalAccess) {
             createData.domain_ids = selectedDomains;
@@ -7130,6 +7336,8 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         if (passwordInput) passwordInput.placeholder = 'Leave empty to keep current password';
         if (roleSelect) roleSelect.value = userData.role || 'user';
         if (globalAccessCheckbox) globalAccessCheckbox.checked = userData.global_access || false;
+        const mustChangeCheckbox = document.getElementById('user-must-change-password');
+        if (mustChangeCheckbox) mustChangeCheckbox.checked = userData.must_change_password === 1 || userData.must_change_password === true;
         if (domainAccessGroup) {
           domainAccessGroup.style.display = globalAccessCheckbox?.checked ? 'none' : 'block';
         }
@@ -7356,16 +7564,16 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         const qrDiv = document.getElementById('mfa-qr-code');
         if (qrDiv && qrCodeUrl) {
           qrDiv.innerHTML = '<p>Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.):</p>' +
-            '<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(qrCodeUrl) + '" alt="MFA QR Code" style="margin-top: 1rem; border: 1px solid #ddd; padding: 0.5rem; background: white;">' +
-            '<p style="margin-top: 1rem; font-size: 0.875rem; color: #666;">Or enter this code manually: <code style="background: #f8f9fa; padding: 0.25rem 0.5rem; border-radius: 4px;">' + (data.secret || '') + '</code></p>';
+            '<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(qrCodeUrl) + '" alt="MFA QR Code" style="margin-top: 1rem; border: 1px solid var(--border-color); padding: 0.5rem; background: var(--card-bg);">' +
+            '<p style="margin-top: 1rem; font-size: 0.875rem; color: var(--secondary-color);">Or enter this code manually: <code style="background: var(--bg-color); padding: 0.25rem 0.5rem; border-radius: 4px;">' + (data.secret || '') + '</code></p>';
         }
         
         // Show backup codes
         const backupDiv = document.getElementById('mfa-backup-codes');
         if (backupDiv && backupCodes.length > 0) {
           backupDiv.innerHTML = '<strong style="color: #dc3545;">⚠️ IMPORTANT: Save these backup codes securely!</strong><br>' +
-            '<p style="font-size: 0.875rem; color: #666; margin-top: 0.5rem;">You can use these codes to access your account if you lose your authenticator device:</p>' +
-            '<div style="margin-top: 0.5rem; font-family: monospace; background: #f8f9fa; padding: 1rem; border-radius: 4px;">' +
+            '<p style="font-size: 0.875rem; color: var(--secondary-color); margin-top: 0.5rem;">You can use these codes to access your account if you lose your authenticator device:</p>' +
+            '<div style="margin-top: 0.5rem; font-family: monospace; background: var(--bg-color); padding: 1rem; border-radius: 4px;">' +
             backupCodes.map(code => '<code style="display: block; padding: 0.25rem; font-size: 1.1rem;">' + code + '</code>').join('') +
             '</div>';
           backupDiv.style.display = 'block';
@@ -7500,7 +7708,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         }
         
         container.innerHTML = '<table style="width: 100%; border-collapse: collapse;">' +
-          '<thead><tr style="background: #f8f9fa; border-bottom: 2px solid #ddd;">' +
+          '<thead><tr style="background: var(--bg-color); border-bottom: 2px solid var(--border-color);">' +
           '<th style="padding: 0.75rem; text-align: left;">Date</th>' +
           '<th style="padding: 0.75rem; text-align: left;">Event</th>' +
           '<th style="padding: 0.75rem; text-align: left;">IP Address</th>' +
@@ -7508,7 +7716,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           '</tr></thead><tbody>' +
           logs.map(log => {
             const date = new Date(log.created_at);
-            return '<tr style="border-bottom: 1px solid #ddd;">' +
+            return '<tr style="border-bottom: 1px solid var(--border-color);">' +
               '<td style="padding: 0.75rem;">' + date.toLocaleString() + '</td>' +
               '<td style="padding: 0.75rem;"><span class="status-badge status-' + log.event_type + '">' + log.event_type + '</span></td>' +
               '<td style="padding: 0.75rem;">' + (log.ip_address || 'N/A') + '</td>' +
@@ -7730,7 +7938,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           
           // Validate IP addresses if provided
           if (!allowAllIps && ipWhitelistRaw.length > 0) {
-            const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$|^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$|^::1$|^::$/;
+            const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.]){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$|^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$|^::1$|^::$/;
             const invalidIps = ipWhitelistRaw.filter(ip => !ipRegex.test(ip));
             if (invalidIps.length > 0) {
               showToast('Invalid IP address format: ' + invalidIps.join(', '), 'error');
@@ -9554,7 +9762,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         } else {
           // Key entered manually - try to fetch info (but we can't verify the full key)
           currentApiKeyInfo = null;
-          infoDiv.innerHTML += '<br><span style="color: #856404; font-size: 0.8rem;">⚠️ Key not found in your API keys list. Domain scoping may not work correctly.</span>';
+          infoDiv.innerHTML += '<br><span style="color: var(--warning-text); font-size: 0.8rem;">⚠️ Key not found in your API keys list. Domain scoping may not work correctly.</span>';
           hideDomainScopingWarning();
         }
       } else if (key.length > 0) {
@@ -9590,7 +9798,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             : 'None');
       
       infoDiv.style.display = 'block';
-      infoDiv.innerHTML = '<div style="margin-top: 0.5rem; padding: 0.75rem; background: #f8f9fa; border-radius: 4px; font-size: 0.875rem;">' +
+      infoDiv.innerHTML = '<div style="margin-top: 0.5rem; padding: 0.75rem; background: var(--bg-color); border-radius: 4px; font-size: 0.875rem;">' +
         '<div style="margin-bottom: 0.25rem;"><strong>Name:</strong> ' + (apiKeyInfo.name || 'Unnamed') + '</div>' +
         '<div style="margin-bottom: 0.25rem;"><strong>Domains:</strong> ' + domains + '</div>' +
         '<div style="margin-bottom: 0.25rem;"><strong>Expires:</strong> ' + expires + '</div>' +
@@ -9642,7 +9850,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       if (!tbody) return;
       
       if (userApiKeys.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: #666;">No active API keys found. Please create one first.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--secondary-color);">No active API keys found. Please create one first.</td></tr>';
         modal.classList.add('active');
         return;
       }
@@ -9745,7 +9953,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       });
       
       if (filtered.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: #666;">No API keys found matching "' + searchTerm + '"</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--secondary-color);">No API keys found matching "' + searchTerm + '"</td></tr>';
         return;
       }
       
@@ -9843,14 +10051,14 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       if (endpoint.pathParams.length > 0) {
         pathParamsDiv.style.display = 'block';
         // @ts-ignore - Template literal HTML generation
-        pathParamsDiv.innerHTML = '<label style="display: block; margin-bottom: 0.5rem; font-size: 0.875rem; color: #666;">Path Parameters</label>' +
+        pathParamsDiv.innerHTML = '<label style="display: block; margin-bottom: 0.5rem; font-size: 0.875rem; color: var(--secondary-color);">Path Parameters</label>' +
           endpoint.pathParams.map(param => {
             const required = param.required ? '<span style="color: #dc3545;">*</span>' : '';
             return '<div style="margin-bottom: 0.5rem;">' +
               '<label style="display: block; margin-bottom: 0.25rem; font-size: 0.875rem;">' +
               param.name + ' ' + required + '</label>' +
               '<input type="text" id="path-' + param.name + '" placeholder="' + param.description + '" ' +
-              'style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;" ' +
+              'style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;" ' +
               'oninput="updateUrlPreview()">' +
               '</div>';
           }).join('');
@@ -9866,7 +10074,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         const filteredDomains = filterDomainsByApiKey(availableDomains, currentApiKeyInfo);
         
         // @ts-ignore - Template literal HTML generation
-        queryParamsDiv.innerHTML = '<label style="display: block; margin-bottom: 0.5rem; font-size: 0.875rem; color: #666;">Query Parameters</label>' +
+        queryParamsDiv.innerHTML = '<label style="display: block; margin-bottom: 0.5rem; font-size: 0.875rem; color: var(--secondary-color);">Query Parameters</label>' +
           endpoint.queryParams.map(param => {
             const required = param.required ? '<span style="color: #dc3545;">*</span>' : '';
             
@@ -9879,7 +10087,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
                 '<label style="display: block; margin-bottom: 0.25rem; font-size: 0.875rem;">' +
                 param.name + ' ' + required + '</label>' +
                 '<select id="query-' + param.name + '" ' +
-                'style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;" ' +
+                'style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;" ' +
                 'onchange="updateUrlPreview()">' +
                 '<option value="">-- Select Domain --</option>' +
                 options +
@@ -9892,7 +10100,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
               '<label style="display: block; margin-bottom: 0.25rem; font-size: 0.875rem;">' +
               param.name + ' ' + required + '</label>' +
               '<input type="' + inputType + '" id="query-' + param.name + '" placeholder="' + param.description + '" ' +
-              'style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;" ' +
+              'style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;" ' +
               'oninput="updateUrlPreview()">' +
               '</div>';
           }).join('');
@@ -9918,8 +10126,8 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           const domainSelector = document.createElement('div');
           domainSelector.id = 'body-domain-selector';
           domainSelector.style.marginBottom = '0.5rem';
-          domainSelector.innerHTML = '<label style="display: block; margin-bottom: 0.5rem; font-size: 0.875rem; color: #666;">Domain <span style="color: #dc3545;">*</span></label>' +
-            '<select id="body-domain-select" style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;" onchange="updateBodyDomainId()">' +
+          domainSelector.innerHTML = '<label style="display: block; margin-bottom: 0.5rem; font-size: 0.875rem; color: var(--secondary-color);">Domain <span style="color: #dc3545;">*</span></label>' +
+            '<select id="body-domain-select" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;" onchange="updateBodyDomainId()">' +
             '<option value="">-- Select Domain --</option>' +
             filteredDomains.map(d => '<option value="' + d.id + '">' + d.domain_name + '</option>').join('') +
             '</select>';
@@ -9955,44 +10163,44 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           
           if (bodyParamsArray.length > 0) {
             fieldsContainer.style.display = 'block';
-            fieldsContainer.innerHTML = '<label style="display: block; margin-bottom: 0.5rem; font-size: 0.875rem; color: #666; font-weight: 600;">Body Parameters</label>' +
+            fieldsContainer.innerHTML = '<label style="display: block; margin-bottom: 0.5rem; font-size: 0.875rem; color: var(--secondary-color); font-weight: 600;">Body Parameters</label>' +
               bodyParamsArray.map(param => {
                 const required = param.required ? '<span style="color: #dc3545;">*</span>' : '';
                 const inputId = 'body-field-' + param.name;
                 
                 let inputHtml = '';
                 if (param.type === 'boolean') {
-                  inputHtml = '<select id="' + inputId + '" style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;" onchange="updateBodyFromFields()">' +
+                  inputHtml = '<select id="' + inputId + '" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;" onchange="updateBodyFromFields()">' +
                     '<option value="">-- Select --</option>' +
                     '<option value="true">true</option>' +
                     '<option value="false">false</option>' +
                     '</select>';
                 } else if (param.type === 'number') {
                   inputHtml = '<input type="number" id="' + inputId + '" placeholder="' + (param.description || param.name) + '" ' +
-                    'style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;" ' +
+                    'style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;" ' +
                     'oninput="updateBodyFromFields()">';
                 } else if (param.type === 'array') {
                   inputHtml = '<textarea id="' + inputId + '" placeholder="Enter JSON array, e.g., [&quot;item1&quot;, &quot;item2&quot;]" ' +
-                    'style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; min-height: 60px; font-family: monospace; font-size: 0.875rem;" ' +
+                    'style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px; min-height: 60px; font-family: monospace; font-size: 0.875rem;" ' +
                     'oninput="updateBodyFromFields()"></textarea>' +
-                    '<small style="display: block; margin-top: 0.25rem; color: #666; font-size: 0.75rem;">Enter a valid JSON array</small>';
+                    '<small style="display: block; margin-top: 0.25rem; color: var(--secondary-color); font-size: 0.75rem;">Enter a valid JSON array</small>';
                 } else if (param.type === 'object') {
                   inputHtml = '<textarea id="' + inputId + '" placeholder="Enter JSON object, e.g., {&quot;key&quot;: &quot;value&quot;}" ' +
-                    'style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; min-height: 80px; font-family: monospace; font-size: 0.875rem;" ' +
+                    'style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px; min-height: 80px; font-family: monospace; font-size: 0.875rem;" ' +
                     'oninput="updateBodyFromFields()"></textarea>' +
-                    '<small style="display: block; margin-top: 0.25rem; color: #666; font-size: 0.75rem;">Enter a valid JSON object</small>';
+                    '<small style="display: block; margin-top: 0.25rem; color: var(--secondary-color); font-size: 0.75rem;">Enter a valid JSON object</small>';
                 } else {
                   // String or default
                   const isUrl = param.name === 'destination_url' || param.name === 'url';
                   inputHtml = '<input type="' + (isUrl ? 'url' : 'text') + '" id="' + inputId + '" placeholder="' + (param.description || param.name) + '" ' +
-                    'style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;" ' +
+                    'style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;" ' +
                     'oninput="updateBodyFromFields()">';
                 }
                 
                 return '<div style="margin-bottom: 0.75rem;">' +
                   '<label style="display: block; margin-bottom: 0.25rem; font-size: 0.875rem; font-weight: 500;">' +
                   param.name + ' ' + required +
-                  (param.description ? ' <span style="color: #666; font-weight: normal;">(' + escapeHtml(param.description) + ')</span>' : '') +
+                  (param.description ? ' <span style="color: var(--secondary-color); font-weight: normal;">(' + escapeHtml(param.description) + ')</span>' : '') +
                   '</label>' +
                   inputHtml +
                   '</div>';
@@ -10470,7 +10678,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
     function highlightJson(jsonStr) {
       // Simple JSON syntax highlighting using regex
       return jsonStr
-        .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, (match) => {
+        .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\\s*:)?|\\b(true|false|null)\\b|-?\\d+(?:\\.\\d*)?(?:[eE][+-]?\\d+)?)/g, (match) => {
           let cls = 'json-number';
           if (/^"/.test(match)) {
             if (/:$/.test(match)) {
@@ -10517,7 +10725,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         const history = JSON.parse(localStorage.getItem('api-playground-history') || '{"requests":[]}');
         
         if (history.requests.length === 0) {
-          historyList.innerHTML = '<p style="color: #666; text-align: center; padding: 1rem;">No requests yet. Send a request to see history.</p>';
+          historyList.innerHTML = '<p style="color: var(--secondary-color); text-align: center; padding: 1rem;">No requests yet. Send a request to see history.</p>';
           return;
         }
         
@@ -11223,11 +11431,11 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         }
         
         let html = '<table style="width: 100%; border-collapse: collapse; table-layout: fixed;"><thead><tr>';
-        html += '<th class="resizable-column" data-column="statusDestination" style="width: var(--col-status-destination-width, 400px); position: relative; min-width: 200px; max-width: 800px; padding: 0.75rem; text-align: left; border-bottom: 2px solid #ddd;">Destination URL<div class="resize-handle" data-column="statusDestination"></div></th>';
-        html += '<th style="width: 100px; padding: 0.75rem; text-align: left; border-bottom: 2px solid #ddd;">Slug Count</th>';
-        html += '<th style="width: 100px; padding: 0.75rem; text-align: left; border-bottom: 2px solid #ddd;">Status Code</th>';
-        html += '<th style="width: 160px; padding: 0.75rem; text-align: left; border-bottom: 2px solid #ddd;">Last Checked</th>';
-        html += '<th style="width: 150px; padding: 0.75rem; text-align: left; border-bottom: 2px solid #ddd;">Actions</th>';
+        html += '<th class="resizable-column" data-column="statusDestination" style="width: var(--col-status-destination-width, 400px); position: relative; min-width: 200px; max-width: 800px; padding: 0.75rem; text-align: left; border-bottom: 2px solid var(--border-color);">Destination URL<div class="resize-handle" data-column="statusDestination"></div></th>';
+        html += '<th style="width: 100px; padding: 0.75rem; text-align: left; border-bottom: 2px solid var(--border-color);">Slug Count</th>';
+        html += '<th style="width: 100px; padding: 0.75rem; text-align: left; border-bottom: 2px solid var(--border-color);">Status Code</th>';
+        html += '<th style="width: 160px; padding: 0.75rem; text-align: left; border-bottom: 2px solid var(--border-color);">Last Checked</th>';
+        html += '<th style="width: 150px; padding: 0.75rem; text-align: left; border-bottom: 2px solid var(--border-color);">Actions</th>';
         html += '</tr></thead><tbody>';
         
         destinations.forEach(dest => {
@@ -11238,17 +11446,17 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           const statusColor = statusCode === 200 ? '#28a745' : statusCode === 404 ? '#dc3545' : statusCode === 500 ? '#ffc107' : '#6c757d';
           
           html += '<tr>';
-          html += '<td style="width: var(--col-status-destination-width, 400px); max-width: var(--col-status-destination-width, 400px); padding: 0.75rem; border-bottom: 1px solid #eee;">';
+          html += '<td style="width: var(--col-status-destination-width, 400px); max-width: var(--col-status-destination-width, 400px); padding: 0.75rem; border-bottom: 1px solid var(--border-color);">';
           html += '<a href="' + escapeHtml(dest.destination_url) + '" target="_blank" style="color: #007bff; text-decoration: none; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="' + escapeAttr(dest.destination_url) + '">' + escapeHtml(dest.destination_url) + '</a>';
           html += '</td>';
-          html += '<td style="padding: 0.75rem; border-bottom: 1px solid #eee;">';
-          html += '<span style="background: #e9ecef; color: #495057; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.875rem; font-weight: 500;">' + dest.slug_count + ' slug' + (dest.slug_count !== 1 ? 's' : '') + '</span>';
+          html += '<td style="padding: 0.75rem; border-bottom: 1px solid var(--border-color);">';
+          html += '<span style="background: var(--border-color); color: var(--secondary-color); padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.875rem; font-weight: 500;">' + dest.slug_count + ' slug' + (dest.slug_count !== 1 ? 's' : '') + '</span>';
           html += '</td>';
-          html += '<td style="padding: 0.75rem; border-bottom: 1px solid #eee;">';
+          html += '<td style="padding: 0.75rem; border-bottom: 1px solid var(--border-color);">';
           html += '<span style="background: ' + statusColor + '; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.875rem;">' + statusCode + '</span>';
           html += '</td>';
-          html += '<td style="padding: 0.75rem; border-bottom: 1px solid #eee;">' + lastChecked + '</td>';
-          html += '<td style="padding: 0.75rem; border-bottom: 1px solid #eee;">';
+          html += '<td style="padding: 0.75rem; border-bottom: 1px solid var(--border-color);">' + lastChecked + '</td>';
+          html += '<td style="padding: 0.75rem; border-bottom: 1px solid var(--border-color);">';
           html += '<div style="display: flex; gap: 0.5rem;">';
           html += '<button class="btn btn-sm btn-secondary view-slugs-btn" data-destination-url="' + escapeAttr(dest.destination_url) + '">View Slugs</button>';
           html += '<button class="btn btn-sm btn-primary edit-destination-btn" data-destination-url="' + escapeAttr(dest.destination_url) + '" data-link-ids="' + escapeAttr(dest.link_ids.join(',')) + '">Edit</button>';
@@ -11438,12 +11646,12 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         }
         
         let html = '<table style="width: 100%; border-collapse: collapse;"><thead><tr>';
-        html += '<th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid #ddd;">Domain</th>';
-        html += '<th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid #ddd;">Route</th>';
-        html += '<th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid #ddd;">Slug</th>';
-        html += '<th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid #ddd;">Status Code</th>';
-        html += '<th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid #ddd;">Last Checked</th>';
-        html += '<th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid #ddd;">Actions</th>';
+        html += '<th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid var(--border-color);">Domain</th>';
+        html += '<th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid var(--border-color);">Route</th>';
+        html += '<th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid var(--border-color);">Slug</th>';
+        html += '<th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid var(--border-color);">Status Code</th>';
+        html += '<th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid var(--border-color);">Last Checked</th>';
+        html += '<th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid var(--border-color);">Actions</th>';
         html += '</tr></thead><tbody>';
         
         links.forEach(link => {
@@ -11462,14 +11670,14 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           } catch (e) {}
 
           html += '<tr>';
-          html += '<td style="padding: 0.75rem; border-bottom: 1px solid #eee;">' + escapeHtml(link.domain_name || '') + '</td>';
-          html += '<td style="padding: 0.75rem; border-bottom: 1px solid #eee;"><code>' + escapeHtml(route) + '</code></td>';
-          html += '<td style="padding: 0.75rem; border-bottom: 1px solid #eee;"><code>' + escapeHtml(link.slug || '') + '</code></td>';
-          html += '<td style="padding: 0.75rem; border-bottom: 1px solid #eee;">';
+          html += '<td style="padding: 0.75rem; border-bottom: 1px solid var(--border-color);">' + escapeHtml(link.domain_name || '') + '</td>';
+          html += '<td style="padding: 0.75rem; border-bottom: 1px solid var(--border-color);"><code>' + escapeHtml(route) + '</code></td>';
+          html += '<td style="padding: 0.75rem; border-bottom: 1px solid var(--border-color);"><code>' + escapeHtml(link.slug || '') + '</code></td>';
+          html += '<td style="padding: 0.75rem; border-bottom: 1px solid var(--border-color);">';
           html += '<span style="background: ' + statusColor + '; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.875rem;">' + statusCode + '</span>';
           html += '</td>';
-          html += '<td style="padding: 0.75rem; border-bottom: 1px solid #eee;">' + lastChecked + '</td>';
-          html += '<td style="padding: 0.75rem; border-bottom: 1px solid #eee;">';
+          html += '<td style="padding: 0.75rem; border-bottom: 1px solid var(--border-color);">' + lastChecked + '</td>';
+          html += '<td style="padding: 0.75rem; border-bottom: 1px solid var(--border-color);">';
           html += '<button class="btn btn-sm btn-primary edit-link-btn" data-link-id="' + escapeAttr(link.id) + '">Edit Link</button>';
           html += '</td>';
           html += '</tr>';
@@ -11526,14 +11734,14 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         html += '<div class="modal-content" style="max-width: 600px;">';
         html += '<span class="close" id="close-bulk-edit-modal">&times;</span>';
         html += '<h2>Bulk Edit Destination URL</h2>';
-        html += '<p style="margin-bottom: 1rem; color: #666;">Update destination URL for <strong>' + linkIds.length + '</strong> link' + (linkIds.length !== 1 ? 's' : '') + '</p>';
+        html += '<p style="margin-bottom: 1rem; color: var(--secondary-color);">Update destination URL for <strong>' + linkIds.length + '</strong> link' + (linkIds.length !== 1 ? 's' : '') + '</p>';
         html += '<div style="margin-bottom: 1rem;">';
         html += '<label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Current Destination URL:</label>';
-        html += '<input type="text" id="bulk-edit-current-url" value="' + escapeAttr(currentDestinationUrl) + '" readonly style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; background: #f5f5f5;">';
+        html += '<input type="text" id="bulk-edit-current-url" value="' + escapeAttr(currentDestinationUrl) + '" readonly style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-color);">';
         html += '</div>';
         html += '<div style="margin-bottom: 1rem;">';
         html += '<label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">New Destination URL:</label>';
-        html += '<input type="url" id="bulk-edit-new-url" placeholder="https://example.com/new-page" required style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">';
+        html += '<input type="url" id="bulk-edit-new-url" placeholder="https://example.com/new-page" required style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;">';
         html += '</div>';
         html += '<div style="display: flex; gap: 0.5rem; justify-content: flex-end;">';
         html += '<button class="btn btn-secondary" id="cancel-bulk-edit-btn">Cancel</button>';
@@ -12047,13 +12255,13 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       
       if (countryMappings[withoutSuffix]) return countryMappings[withoutSuffix];
       
-      const withUnderscores = withoutSuffix.replace(/\s+/g, '_');
+      const withUnderscores = withoutSuffix.replace(/ +/g, '_');
       if (countryMappings[withUnderscores]) return countryMappings[withUnderscores];
       
-      const withHyphens = withoutSuffix.replace(/\s+/g, '-');
+      const withHyphens = withoutSuffix.replace(/ +/g, '-');
       if (countryMappings[withHyphens]) return countryMappings[withHyphens];
       
-      const normalized = withoutSuffix.replace(/[\s_-]/g, '');
+      const normalized = withoutSuffix.replace(/[ _-]/g, '');
       if (countryMappings[normalized]) return countryMappings[normalized];
       
       if (withoutSuffix.length === 2) {
@@ -12081,6 +12289,43 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       return names[countryCode] || countryCode;
     }
     
+    // Map a CSV header (already lowercased + trimmed) to a link field value so common
+    // columns auto-map without manual selection (#14). Returns '' when there's no
+    // confident match, leaving the column as "-- Not mapped --".
+    function guessLinkField(header) {
+      // NOTE: use a literal-space class, not \s — this whole file is one template
+      // literal, which swallows the backslash and would ship a broken /s+/g regex.
+      const h = header.replace(/[_-]+/g, ' ').replace(/ +/g, ' ').trim();
+      const exact = {
+        // Destination URL
+        'destination url': 'destination_url', 'destination': 'destination_url',
+        'url': 'destination_url', 'link': 'destination_url', 'target': 'destination_url',
+        'target url': 'destination_url', 'long url': 'destination_url',
+        'original url': 'destination_url', 'redirect to': 'destination_url',
+        'full url': 'destination_url',
+        // Slug / short code
+        'slug': 'slug', 'short code': 'slug', 'shortcode': 'slug',
+        'short url': 'slug', 'short link': 'slug', 'alias': 'slug',
+        'keyword': 'slug', 'back half': 'slug',
+        // Title
+        'title': 'title', 'name': 'title', 'label': 'title',
+        // Description
+        'description': 'description', 'desc': 'description',
+        'notes': 'description', 'note': 'description',
+        // Redirect code
+        'redirect code': 'redirect_code', 'status code': 'redirect_code',
+        'http code': 'redirect_code', 'http status': 'redirect_code',
+        // Category (note: import expects a category ID, not a name)
+        'category': 'category_id', 'category id': 'category_id',
+        'categories': 'category_id', 'cat': 'category_id',
+        // Tags
+        'tag': 'tags', 'tags': 'tags', 'labels': 'tags', 'keywords': 'tags',
+        // Route
+        'route': 'route',
+      };
+      return exact[h] || '';
+    }
+
     // Generate column mapping UI
     function generateColumnMapping(csvHeaders) {
       const container = document.getElementById('column-mapping-container');
@@ -12139,25 +12384,25 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       // Show summary of detected redirects
       if (geoColumns.length > 0 || deviceColumns.length > 0) {
         const summaryDiv = document.createElement('div');
-        summaryDiv.style.cssText = 'grid-column: 1 / -1; background: #e3f2fd; padding: 1rem; border-radius: 4px; margin-bottom: 1rem; border-left: 4px solid #2196f3;';
+        summaryDiv.style.cssText = 'grid-column: 1 / -1; background: var(--info-bg); padding: 1rem; border-radius: 4px; margin-bottom: 1rem; border-left: 4px solid #2196f3;';
         
-        let summaryHtml = '<strong style="color: #1565c0;">🌍 Auto-detected Redirect Columns:</strong><br>';
+        let summaryHtml = '<strong style="color: var(--info-text);">🌍 Auto-detected Redirect Columns:</strong><br>';
         
         if (geoColumns.length > 0) {
-          summaryHtml += '<span style="color: #424242; margin-left: 1.5rem;">• Geo redirects:</span><br>';
+          summaryHtml += '<span style="color: var(--secondary-color); margin-left: 1.5rem;">• Geo redirects:</span><br>';
           geoColumns.forEach(g => {
-            summaryHtml += '<span style="color: #666; margin-left: 3rem; font-size: 0.9rem;">- "' + escapeHtml(g.header) + '" → ' + g.countryName + ' (' + g.countryCode + ')</span><br>';
+            summaryHtml += '<span style="color: var(--secondary-color); margin-left: 3rem; font-size: 0.9rem;">- "' + escapeHtml(g.header) + '" → ' + g.countryName + ' (' + g.countryCode + ')</span><br>';
           });
         }
         
         if (deviceColumns.length > 0) {
-          summaryHtml += '<span style="color: #424242; margin-left: 1.5rem;">• Device redirects:</span><br>';
+          summaryHtml += '<span style="color: var(--secondary-color); margin-left: 1.5rem;">• Device redirects:</span><br>';
           deviceColumns.forEach(d => {
-            summaryHtml += '<span style="color: #666; margin-left: 3rem; font-size: 0.9rem;">- "' + escapeHtml(d.header) + '" → ' + d.device.charAt(0).toUpperCase() + d.device.slice(1) + '</span><br>';
+            summaryHtml += '<span style="color: var(--secondary-color); margin-left: 3rem; font-size: 0.9rem;">- "' + escapeHtml(d.header) + '" → ' + d.device.charAt(0).toUpperCase() + d.device.slice(1) + '</span><br>';
           });
         }
         
-        summaryHtml += '<small style="color: #666; margin-left: 1.5rem; display: block; margin-top: 0.5rem;">These will be automatically imported. No mapping needed!</small>';
+        summaryHtml += '<small style="color: var(--secondary-color); margin-left: 1.5rem; display: block; margin-top: 0.5rem;">These will be automatically imported. No mapping needed!</small>';
         summaryDiv.innerHTML = summaryHtml;
         container.appendChild(summaryDiv);
       }
@@ -12192,6 +12437,12 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           option.textContent = field.label + (field.required ? ' *' : '');
           select.appendChild(option);
         });
+        // Auto-select a sensible field based on the header name so users don't have to
+        // map standard columns (Category, Tags, Redirect Code, URL, etc.) by hand (#14).
+        const guessedField = guessLinkField(cleanHeader);
+        if (guessedField) {
+          select.value = guessedField;
+        }
         mappingDiv.appendChild(select);
         
         // Add prefix filter input for slug field
@@ -12206,7 +12457,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         const prefixInput = document.createElement('input');
         prefixInput.type = 'text';
         prefixInput.placeholder = 'Enter prefix (e.g., go/)';
-        prefixInput.style.cssText = 'width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; font-size: 0.875rem; margin-top: 0.25rem;';
+        prefixInput.style.cssText = 'width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px; font-size: 0.875rem; margin-top: 0.25rem;';
         prefixInput.id = 'prefix-input-' + escapeAttr(csvHeader);
         prefixInput.addEventListener('input', () => {
           updateColumnMapping();
@@ -12230,7 +12481,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         const cityInput = document.createElement('input');
         cityInput.type = 'text';
         cityInput.placeholder = 'Enter city name (e.g., Jakarta)';
-        cityInput.style.cssText = 'width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; font-size: 0.875rem; margin-top: 0.25rem;';
+        cityInput.style.cssText = 'width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px; font-size: 0.875rem; margin-top: 0.25rem;';
         cityInput.id = 'city-input-' + escapeAttr(csvHeader);
         cityInput.addEventListener('input', () => {
           updateColumnMapping();
@@ -12306,14 +12557,14 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           headerText += ' <span style="color: #007bff; font-size: 0.75rem;">(extracted)</span>';
         } else if (isGeoColumn) {
           const countryName = getCountryNameFrontend(countryCode);
-          headerText += ' <span style="color: #2e7d32; font-size: 0.75rem;">🌍 ' + countryName + '</span>';
+          headerText += ' <span style="color: var(--success-text); font-size: 0.75rem;">🌍 ' + countryName + '</span>';
           bgColor = '#e8f5e9';
         } else if (isDeviceColumn) {
-          headerText += ' <span style="color: #1565c0; font-size: 0.75rem;">📱 ' + withoutSuffix.charAt(0).toUpperCase() + withoutSuffix.slice(1) + '</span>';
+          headerText += ' <span style="color: var(--info-text); font-size: 0.75rem;">📱 ' + withoutSuffix.charAt(0).toUpperCase() + withoutSuffix.slice(1) + '</span>';
           bgColor = '#e3f2fd';
         }
         
-        html += '<th style="padding: 0.5rem; border: 1px solid #ddd; background: ' + bgColor + '; text-align: left;">' + headerText + '</th>';
+        html += '<th style="padding: 0.5rem; border: 1px solid var(--border-color); background: ' + bgColor + '; text-align: left;">' + headerText + '</th>';
       });
       html += '</tr></thead><tbody>';
       
@@ -12327,7 +12578,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             const extracted = extractSlugFromValue(displayValue, slugPrefixFilter[header]);
             if (extracted !== displayValue) {
               // Show original with extracted value below
-              displayValue = '<div><span style="color: #666; font-size: 0.75rem; text-decoration: line-through;">' + escapeHtml(displayValue) + '</span><br><span style="color: #007bff; font-weight: 600;">' + escapeHtml(extracted) + '</span></div>';
+              displayValue = '<div><span style="color: var(--secondary-color); font-size: 0.75rem; text-decoration: line-through;">' + escapeHtml(displayValue) + '</span><br><span style="color: #007bff; font-weight: 600;">' + escapeHtml(extracted) + '</span></div>';
             } else {
               displayValue = escapeHtml(displayValue);
             }
@@ -12335,14 +12586,14 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             displayValue = escapeHtml(displayValue);
           }
           
-          html += '<td style="padding: 0.5rem; border: 1px solid #ddd;">' + displayValue + '</td>';
+          html += '<td style="padding: 0.5rem; border: 1px solid var(--border-color);">' + displayValue + '</td>';
         });
         html += '</tr>';
       });
       html += '</tbody></table>';
       
       if (csvData.rows.length > 5) {
-        html += '<p style="margin-top: 0.5rem; color: #666; font-size: 0.875rem;">... and ' + (csvData.rows.length - 5) + ' more rows</p>';
+        html += '<p style="margin-top: 0.5rem; color: var(--secondary-color); font-size: 0.875rem;">... and ' + (csvData.rows.length - 5) + ' more rows</p>';
       }
       
       previewContainer.innerHTML = html;
@@ -13779,7 +14030,7 @@ function renderLinkAnalyticsOS(container, data) {
 }
 
 function renderLinkAnalyticsCustomParams(container, data) {
-  container.innerHTML = '<div style="padding: 2rem; text-align: center; color: #666;"><h3>Custom Parameters</h3><p>Custom parameter tracking is coming soon.</p><p>This feature will allow you to track custom query parameters and their values.</p></div>';
+  container.innerHTML = '<div style="padding: 2rem; text-align: center; color: var(--secondary-color);"><h3>Custom Parameters</h3><p>Custom parameter tracking is coming soon.</p><p>This feature will allow you to track custom query parameters and their values.</p></div>';
 }
 
 

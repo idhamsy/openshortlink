@@ -28,6 +28,13 @@ export const baseCss = `/* Root Variables */
   --sidebar-active: #6366f1;
   --warning-bg: #fff3cd;
   --warning-border: #ffeeba;
+  /* Callout backgrounds for inline info/success boxes (dark variants in dark-mode.css) */
+  --info-bg: #e7f3ff;
+  --success-bg: #e8f5e9;
+  /* Callout text/heading accents — readable on both light and dark callout backgrounds */
+  --info-text: #004085;
+  --warning-text: #856404;
+  --success-text: #2e7d32;
 }
 
 /* Reset & Base */

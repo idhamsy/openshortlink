@@ -93,6 +93,7 @@ export interface User {
   // Multi-user system
   global_access?: number; // 0 or 1 (SQLite boolean) - 1 = access to all domains
   permission_version?: number; // Incremented when domain access changes (for cache invalidation)
+  must_change_password?: number; // 0 or 1 (SQLite boolean) - 1 = force password change on next login (#11)
 }
 
 export interface UserDomain {
