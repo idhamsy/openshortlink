@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.9.2] - 2026-06-22
+
+### Security
+- Pinned `vitest` to **4.1.8** (was `^1.6.0`) to resolve critical advisory **GHSA-5xrq-8626-4rwp** / CVE-2026-47429 (Vitest UI server arbitrary file read / code execution). Development-only dependency — it is **not** bundled into the deployed Worker, so there is no production or runtime impact.
+
+---
+
 ## [0.9.1] - 2026-06-06
 
 ### Added
