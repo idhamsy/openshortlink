@@ -1,6 +1,6 @@
 {
   "name": "openshortlink",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "description": "OpenShort.link - Open-source Cloudflare-based link shortener and management platform",
   "overrides": {
     "js-yaml": ">=4.1.1",
@@ -40,7 +40,7 @@
     "eslint": "^8.57.0",
     "prettier": "^3.2.0",
     "typescript": "^5.4.0",
-    "vitest": "^1.6.0",
+    "vitest": "4.1.8",
     "wrangler": "^4.54.0"
   },
   "dependencies": {
