@@ -44,6 +44,11 @@ Deploy with a single click and manage your links across multiple domains with co
 - **Device-Based Routing**: Target users with precision based on device type (desktop, mobile, tablet)
 - **Custom Redirect Codes**: Choose from 301, 302, 307, or 308 HTTP redirect codes
 
+### 🔗 Social Sharing (Open Graph)
+
+- **Custom Link Previews**: Set per-link Open Graph / Twitter Card tags (title, description, image, type) so a shared short link shows a rich preview on Facebook, X, LinkedIn, Slack, Discord, WhatsApp, and more — while human visitors are still redirected normally
+- **Fetch from Destination**: One click pulls the destination page's existing OG tags to pre-fill the fields (only blank fields, so your edits are kept), SSRF-guarded
+
 ### 📊 Full Analytics
 
 Powered by Cloudflare Analytics Engine, track everything:

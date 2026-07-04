@@ -44,6 +44,8 @@ import {
   saveLinkRedirects,
   type RedirectData,
 } from '../db/linkRedirects';
+import { getOgMeta, upsertOgMeta, clearOgMeta } from '../db/linkOgMeta';
+import { fetchOgTags, isPubliclyFetchableUrl } from '../utils/ogScraper';
 import { buildCachedLink } from '../services/linkService';
 import { generateId, generateSlug } from '../utils/id';
 import { isValidUrl, isValidSlug, normalizeUrl, sanitizeHtml, sanitizeSearchInput, validateNumericBoundary, isReservedSlug } from '../utils/validation';
@@ -55,7 +57,7 @@ import { requireLinkAccess, requirePermission } from '../middleware/authorizatio
 import { canAccessDomain } from '../utils/permissions';
 import { isInfiniteRedirect } from '../utils/domains';
 import { getEffectiveLinkRoute } from '../utils/route';
-import { createLinkSchema, updateLinkSchema } from '../schemas';
+import { createLinkSchema, updateLinkSchema, ogFetchSchema } from '../schemas';
 
 const linksRouter = new Hono<{ Bindings: Env }>();
 
@@ -412,11 +414,12 @@ linksRouter.get('/:id', authOrApiKeyMiddleware, async (c) => {
   }
 
   // Get geo and device redirects in parallel
-  const [geoRedirects, deviceRedirects, cityRedirects, osRedirects] = await Promise.all([
+  const [geoRedirects, deviceRedirects, cityRedirects, osRedirects, ogMeta] = await Promise.all([
     getGeoRedirects(c.env, id),
     getDeviceRedirects(c.env, id),
     getCityRedirects(c.env, id),
-    getOsRedirects(c.env, id)
+    getOsRedirects(c.env, id),
+    getOgMeta(c.env, id)
   ]);
 
   return c.json({
@@ -427,8 +430,29 @@ linksRouter.get('/:id', authOrApiKeyMiddleware, async (c) => {
       device_redirects: deviceRedirects,
       city_redirects: cityRedirects,
       os_redirects: osRedirects,
+      og_meta: ogMeta,
     },
   });
+});
+
+// Fetch Open Graph tags from a destination URL (for the "Fetch from URL" button).
+// Scrapes the URL the user entered and returns its OG/Twitter meta so the dashboard
+// can pre-fill the social preview fields. Auth-gated; SSRF-guarded.
+linksRouter.post('/og-fetch', authMiddleware, validateJson(ogFetchSchema), async (c) => {
+  const { url } = c.req.valid('json');
+
+  if (!isPubliclyFetchableUrl(url)) {
+    throw new HTTPException(400, { message: 'URL is not publicly fetchable' });
+  }
+
+  try {
+    const og = await fetchOgTags(url);
+    return c.json({ success: true, data: og });
+  } catch (error) {
+    throw new HTTPException(400, {
+      message: error instanceof Error ? error.message : 'Failed to fetch Open Graph tags',
+    });
+  }
 });
 
 // Create link
@@ -576,16 +600,22 @@ linksRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links'),
     os_redirects: validated.os_redirects,
   });
 
+  // Save Open Graph / Twitter Card metadata if provided
+  if (validated.og_meta) {
+    await upsertOgMeta(c.env, link.id, validated.og_meta);
+  }
+
   // Build and set cache
   const cachedLink = await buildCachedLink(c.env, link, domain);
   await setCachedLink(c.env, domain.domain_name, link.slug, cachedLink);
 
   // Fetch fresh data for response
-  const [geoRedirects, deviceRedirects, cityRedirects, osRedirects] = await Promise.all([
+  const [geoRedirects, deviceRedirects, cityRedirects, osRedirects, ogMeta] = await Promise.all([
     getGeoRedirects(c.env, link.id),
     getDeviceRedirects(c.env, link.id),
     getCityRedirects(c.env, link.id),
     getOsRedirects(c.env, link.id),
+    getOgMeta(c.env, link.id),
   ]);
 
   // Get link with tags
@@ -597,6 +627,7 @@ linksRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links'),
     device_redirects: deviceRedirects,
     city_redirects: cityRedirects,
     os_redirects: osRedirects,
+    og_meta: ogMeta,
   };
 
   return c.json({ success: true, data: linkWithTags }, 201);
@@ -724,6 +755,16 @@ linksRouter.put('/:id', authOrApiKeyMiddleware, requireLinkAccess('edit'), valid
     await saveLinkRedirects(c.env, id, { os_redirects: validated.os_redirects });
   }
 
+  // Update Open Graph metadata if provided. An empty/cleared object means "remove".
+  if (validated.og_meta !== undefined) {
+    const hasAny = validated.og_meta.og_title || validated.og_meta.og_description || validated.og_meta.og_image;
+    if (hasAny) {
+      await upsertOgMeta(c.env, id, validated.og_meta);
+    } else {
+      await clearOgMeta(c.env, id);
+    }
+  }
+
   // Get updated link with tags and category
   const updatedLink = await getLinkById(c.env, id);
   if (!updatedLink) {
@@ -744,11 +785,12 @@ linksRouter.put('/:id', authOrApiKeyMiddleware, requireLinkAccess('edit'), valid
   }
 
   // Fetch fresh data for response
-  const [geoRedirects, deviceRedirects, cityRedirects, osRedirects] = await Promise.all([
+  const [geoRedirects, deviceRedirects, cityRedirects, osRedirects, ogMeta] = await Promise.all([
     getGeoRedirects(c.env, id),
     getDeviceRedirects(c.env, id),
     getCityRedirects(c.env, id),
     getOsRedirects(c.env, id),
+    getOgMeta(c.env, id),
   ]);
 
   const linkWithTags = {
@@ -759,6 +801,7 @@ linksRouter.put('/:id', authOrApiKeyMiddleware, requireLinkAccess('edit'), valid
     device_redirects: deviceRedirects,
     city_redirects: cityRedirects,
     os_redirects: osRedirects,
+    og_meta: ogMeta,
   };
 
   return c.json({ success: true, data: linkWithTags });

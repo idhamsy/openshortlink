@@ -1,16 +1,18 @@
 import type { Env, Link, CachedLink, Domain } from '../types';
 import { getGeoRedirects, getDeviceRedirects, getCityRedirects, getOsRedirects } from '../db/linkRedirects';
+import { getOgMeta } from '../db/linkOgMeta';
 
 /**
  * Builds the complete cached link object including all redirect rules.
  * Fetches data from all redirect tables in parallel.
  */
 export async function buildCachedLink(env: Env, link: Link, domain: Domain): Promise<CachedLink> {
-  const [geoRedirects, deviceRedirects, cityRedirects, osRedirects] = await Promise.all([
+  const [geoRedirects, deviceRedirects, cityRedirects, osRedirects, ogMeta] = await Promise.all([
     getGeoRedirects(env, link.id),
     getDeviceRedirects(env, link.id),
     getCityRedirects(env, link.id),
-    getOsRedirects(env, link.id)
+    getOsRedirects(env, link.id),
+    getOgMeta(env, link.id)
   ]);
 
   return {
@@ -43,6 +45,15 @@ export async function buildCachedLink(env: Env, link: Link, domain: Domain): Pro
           ios: osRedirects.find((r) => r.os === 'ios')?.destination_url,
         }
         : undefined,
+    og_meta: ogMeta
+      ? {
+          og_title: ogMeta.og_title,
+          og_description: ogMeta.og_description,
+          og_image: ogMeta.og_image,
+          og_type: ogMeta.og_type,
+          twitter_card: ogMeta.twitter_card,
+        }
+      : undefined,
     route: link.metadata ? (() => {
       try { return JSON.parse(link.metadata).route; } catch { return undefined; }
     })() : undefined,
