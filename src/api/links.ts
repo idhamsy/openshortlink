@@ -600,8 +600,11 @@ linksRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links'),
     os_redirects: validated.os_redirects,
   });
 
-  // Save Open Graph / Twitter Card metadata if provided
-  if (validated.og_meta) {
+  // Save Open Graph / Twitter Card metadata only when it carries a real preview
+  // field. og_meta:{} still validates (og_type/twitter_card default), so guard on
+  // title/description/image — matching the PUT path — to avoid a meaningless row
+  // that would route bots to an empty preview page.
+  if (validated.og_meta && (validated.og_meta.og_title || validated.og_meta.og_description || validated.og_meta.og_image)) {
     await upsertOgMeta(c.env, link.id, validated.og_meta);
   }
 

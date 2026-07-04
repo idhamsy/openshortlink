@@ -20,19 +20,24 @@ export interface ScrapedOgMeta {
 
 const MAX_HTML_BYTES = 1_000_000; // only parse the first ~1MB of HTML
 const FETCH_TIMEOUT_MS = 8000;
+const MAX_REDIRECTS = 3;
 
 /**
  * Decode the handful of HTML entities that commonly appear in meta content.
  * We decode here so the value is stored raw; the render layer re-escapes via escapeHtml.
  */
 function decodeEntities(value: string): string {
-  return value
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#0*39;/g, "'")
-    .replace(/&#x27;/gi, "'");
+  // Single left-to-right pass: chaining sequential .replace() calls would let an
+  // earlier replacement's output be re-matched by a later one (e.g. "&amp;lt;" ->
+  // "&lt;" -> "<"). Matching each entity once avoids that double-unescape.
+  return value.replace(/&(?:amp|lt|gt|quot|#0*39|#x27);/gi, (match) => {
+    const e = match.toLowerCase();
+    if (e === '&amp;') return '&';
+    if (e === '&lt;') return '<';
+    if (e === '&gt;') return '>';
+    if (e === '&quot;') return '"';
+    return "'"; // &#39; / &#039; / &#x27;
+  });
 }
 
 /**
@@ -143,25 +148,42 @@ export function parseOgTags(html: string): ScrapedOgMeta {
  * non-HTML, or network error — the caller maps that to a 4xx/5xx response.
  */
 export async function fetchOgTags(url: string): Promise<ScrapedOgMeta> {
-  if (!isPubliclyFetchableUrl(url)) {
-    throw new Error('URL is not publicly fetchable');
-  }
-
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    const response = await fetch(url, {
-      method: 'GET',
-      redirect: 'follow',
-      signal: controller.signal,
-      headers: {
-        'User-Agent': 'OpenShortLink-OGFetcher/1.0',
-        Accept: 'text/html,application/xhtml+xml',
-      },
-    });
+    // Follow redirects MANUALLY, re-validating every hop against the SSRF guard.
+    // `redirect: 'follow'` would let a public URL redirect the worker to a private/
+    // internal host, bypassing the initial isPubliclyFetchableUrl() check.
+    let currentUrl = url;
+    let response: Response | null = null;
+    for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+      if (!isPubliclyFetchableUrl(currentUrl)) {
+        throw new Error('URL is not publicly fetchable');
+      }
+      response = await fetch(currentUrl, {
+        method: 'GET',
+        redirect: 'manual',
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'OpenShortLink-OGFetcher/1.0',
+          Accept: 'text/html,application/xhtml+xml',
+        },
+      });
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get('location');
+        if (!location) break; // redirect without a target -> treat as terminal
+        if (hop === MAX_REDIRECTS) {
+          throw new Error('Too many redirects');
+        }
+        // Resolve relative redirects; the next loop iteration re-checks the SSRF guard.
+        currentUrl = new URL(location, currentUrl).toString();
+        continue;
+      }
+      break; // not a redirect -> use this response
+    }
 
-    if (!response.ok) {
-      throw new Error(`Destination returned ${response.status}`);
+    if (!response || !response.ok) {
+      throw new Error(`Destination returned ${response ? response.status : 'no response'}`);
     }
 
     const contentType = response.headers.get('content-type') || '';

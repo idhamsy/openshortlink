@@ -284,8 +284,11 @@ export async function handleRedirect(
       status: 200,
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
-        // Short URL is the same for everyone, so this can be shared-cached briefly.
+        // The 200-preview-vs-301-redirect choice depends on the User-Agent (bot check),
+        // so shared caches MUST key on it — otherwise a cached preview could be served
+        // to a human, or a cached redirect to a crawler (cache poisoning).
         'Cache-Control': 'public, max-age=300',
+        'Vary': 'User-Agent',
       },
     });
   }
@@ -349,7 +352,9 @@ export function extractGeoFromRequest(request: Request): { country: string; city
  * vary on CF-IPCity so cities don't share each other's cached destination.
  */
 export function buildVaryHeader(cached: CachedLink): string | undefined {
-  if (!(cached.geo_redirects || cached.device_redirects || cached.city_redirects || cached.os_redirects)) {
+  // og_meta included: a crawler gets a 200 preview while a human gets this 301, so the
+  // redirect must also vary on User-Agent to keep shared caches from crossing them.
+  if (!(cached.geo_redirects || cached.device_redirects || cached.city_redirects || cached.os_redirects || cached.og_meta)) {
     return undefined;
   }
   const varyValues = ['Accept-Language', 'CF-IPCountry', 'User-Agent'];

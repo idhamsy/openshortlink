@@ -36,6 +36,12 @@ describe('parseOgTags', () => {
     expect(parseOgTags(html).og_title).toBe('Tom & Jerry <3 "quotes"');
   });
 
+  it('does not double-unescape nested entities', () => {
+    // "&amp;lt;" is the literal text "&lt;", not "<".
+    const html = `<meta property="og:title" content="A &amp;lt; B">`;
+    expect(parseOgTags(html).og_title).toBe('A &lt; B');
+  });
+
   it('falls back to twitter:* when og:* is absent', () => {
     const html = `
       <meta name="twitter:title" content="TW Title">
