@@ -222,6 +222,30 @@ export async function handleRedirect(
     }
   }
 
+  // Social crawler + OG meta configured -> serve a rich preview page instead of a bare
+  // redirect. Done BEFORE click tracking + destination resolution so that crawler
+  // preview fetches (often several per social share) are NOT counted as clicks.
+  // Humans, and crawlers on links without og_meta, fall through to the normal redirect.
+  const ogUserAgent = request.headers.get('user-agent') || '';
+  if (cached.og_meta && isBot(ogUserAgent)) {
+    // og:url is the SHORT link itself (query stripped) so the preview is attributed
+    // to the short URL, not the destination — and the page does NOT auto-redirect,
+    // so scrapers read our tags instead of following through to the destination.
+    const shortUrl = new URL(request.url);
+    shortUrl.search = '';
+    return new Response(renderOgPreviewPage(cached.og_meta, shortUrl.toString()), {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        // The 200-preview-vs-301-redirect choice depends on the User-Agent (bot check),
+        // so shared caches MUST key on it — otherwise a cached preview could be served
+        // to a human, or a cached redirect to a crawler (cache poisoning).
+        'Cache-Control': 'public, max-age=300',
+        'Vary': 'User-Agent',
+      },
+    });
+  }
+
   // Resolve destination URL based on geo/device
   const resolvedUrl = resolveDestinationUrl(cached, request);
   // DEBUG: console.log('[REDIRECT] Resolved destination URL:', resolvedUrl);
@@ -270,28 +294,6 @@ export async function handleRedirect(
   // console.log('[REDIRECT] Tracking promise created, redirecting now...');
 
   // DEBUG: console.log('[REDIRECT] Returning redirect response to:', finalDestinationUrl);
-
-  // Social crawler + OG meta configured -> serve a rich preview page instead of a bare
-  // redirect. Real users (non-bot UAs) fall through to the redirect below unchanged.
-  const ogUserAgent = request.headers.get('user-agent') || '';
-  if (cached.og_meta && isBot(ogUserAgent)) {
-    // og:url is the SHORT link itself (query stripped) so the preview is attributed
-    // to the short URL, not the destination — and the page does NOT auto-redirect,
-    // so scrapers read our tags instead of following through to the destination.
-    const shortUrl = new URL(request.url);
-    shortUrl.search = '';
-    return new Response(renderOgPreviewPage(cached.og_meta, shortUrl.toString()), {
-      status: 200,
-      headers: {
-        'Content-Type': 'text/html; charset=utf-8',
-        // The 200-preview-vs-301-redirect choice depends on the User-Agent (bot check),
-        // so shared caches MUST key on it — otherwise a cached preview could be served
-        // to a human, or a cached redirect to a crawler (cache poisoning).
-        'Cache-Control': 'public, max-age=300',
-        'Vary': 'User-Agent',
-      },
-    });
-  }
 
   // Create redirect response with cache control headers
   // We need to create a new Response because Response.redirect() returns an immutable response
