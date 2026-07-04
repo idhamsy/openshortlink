@@ -11,7 +11,10 @@ import type { Env, Link, CachedLink, Domain } from '../types';
 import { getCachedLink, setCachedLink } from './cache';
 import { getLinkBySlug, incrementClickCount } from '../db/links';
 import { getGeoRedirects, getDeviceRedirects, getCityRedirects, getOsRedirects, type LinkGeoRedirect, type LinkDeviceRedirect, type LinkCityRedirect, type LinkOsRedirect } from '../db/linkRedirects';
+import { getOgMeta } from '../db/linkOgMeta';
 import { trackClick, parseUserAgent, extractUtmParams, hashIpAddress, formatDateForGrouping, extractReferrerDomain } from './analytics';
+import { isBot } from '../utils/bots';
+import { renderOgPreviewPage } from '../views/ogPreview';
 
 /**
  * Merges query parameters from the request URL into the destination URL.
@@ -112,11 +115,13 @@ export async function handleRedirect(
     let deviceRedirects: LinkDeviceRedirect[];
     let cityRedirects: LinkCityRedirect[];
     let osRedirects: LinkOsRedirect[];
-    [geoRedirects, deviceRedirects, cityRedirects, osRedirects] = await Promise.all([
+    let ogMeta: Awaited<ReturnType<typeof getOgMeta>>;
+    [geoRedirects, deviceRedirects, cityRedirects, osRedirects, ogMeta] = await Promise.all([
       getGeoRedirects(env, link.id),
       getDeviceRedirects(env, link.id),
       getCityRedirects(env, link.id),
-      getOsRedirects(env, link.id)
+      getOsRedirects(env, link.id),
+      getOgMeta(env, link.id)
     ]);
 
     // Build complete cache object (with all required fields)
@@ -157,6 +162,15 @@ export async function handleRedirect(
             ios: osRedirects.find((r) => r.os === 'ios')?.destination_url,
           }
           : undefined,
+      og_meta: ogMeta
+        ? {
+          og_title: ogMeta.og_title,
+          og_description: ogMeta.og_description,
+          og_image: ogMeta.og_image,
+          og_type: ogMeta.og_type,
+          twitter_card: ogMeta.twitter_card,
+        }
+        : undefined,
       route: link.metadata ? (() => {
         try { return JSON.parse(link.metadata).route; } catch { return undefined; }
       })() : undefined,
@@ -206,6 +220,30 @@ export async function handleRedirect(
         }
       }
     }
+  }
+
+  // Social crawler + OG meta configured -> serve a rich preview page instead of a bare
+  // redirect. Done BEFORE click tracking + destination resolution so that crawler
+  // preview fetches (often several per social share) are NOT counted as clicks.
+  // Humans, and crawlers on links without og_meta, fall through to the normal redirect.
+  const ogUserAgent = request.headers.get('user-agent') || '';
+  if (cached.og_meta && isBot(ogUserAgent)) {
+    // og:url is the SHORT link itself (query stripped) so the preview is attributed
+    // to the short URL, not the destination — and the page does NOT auto-redirect,
+    // so scrapers read our tags instead of following through to the destination.
+    const shortUrl = new URL(request.url);
+    shortUrl.search = '';
+    return new Response(renderOgPreviewPage(cached.og_meta, shortUrl.toString()), {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        // The 200-preview-vs-301-redirect choice depends on the User-Agent (bot check),
+        // so shared caches MUST key on it — otherwise a cached preview could be served
+        // to a human, or a cached redirect to a crawler (cache poisoning).
+        'Cache-Control': 'public, max-age=300',
+        'Vary': 'User-Agent',
+      },
+    });
   }
 
   // Resolve destination URL based on geo/device
@@ -316,7 +354,9 @@ export function extractGeoFromRequest(request: Request): { country: string; city
  * vary on CF-IPCity so cities don't share each other's cached destination.
  */
 export function buildVaryHeader(cached: CachedLink): string | undefined {
-  if (!(cached.geo_redirects || cached.device_redirects || cached.city_redirects || cached.os_redirects)) {
+  // og_meta included: a crawler gets a 200 preview while a human gets this 301, so the
+  // redirect must also vary on User-Agent to keep shared caches from crossing them.
+  if (!(cached.geo_redirects || cached.device_redirects || cached.city_redirects || cached.os_redirects || cached.og_meta)) {
     return undefined;
   }
   const varyValues = ['Accept-Language', 'CF-IPCountry', 'User-Agent'];

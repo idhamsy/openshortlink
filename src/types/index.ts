@@ -213,6 +213,13 @@ export interface CachedLink {
     android?: string;
     ios?: string;
   };
+  og_meta?: {
+    og_title?: string;
+    og_description?: string;
+    og_image?: string;
+    og_type: string;
+    twitter_card: string;
+  };
   route?: string; // The specific route this link is assigned to (for strict routing)
   domain_routing_path?: string; // The domain's default routing path (for legacy strict routing check)
 }

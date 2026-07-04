@@ -981,6 +981,53 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           </div>
         </div>
 
+        <!-- Social Media Meta (Open Graph) Section -->
+        <div class="form-group">
+          <label>
+            <input type="checkbox" id="og-meta-enabled">
+            Customize Social Media Preview (Open Graph)
+          </label>
+          <small style="display: block; margin-top: 0.25rem; color: var(--secondary-color);">
+            Control the title, description, and image shown when this link is shared on social media. Crawlers see a preview; visitors are redirected normally.
+          </small>
+        </div>
+        <div id="og-meta-section" style="display: none; margin-top: 1rem; background: var(--bg-color); padding: 1rem; border-radius: 4px;">
+          <div class="form-group">
+            <button type="button" id="og-fetch-btn" class="btn btn-secondary">Fetch from destination URL</button>
+            <small style="display: block; margin-top: 0.25rem; color: var(--secondary-color);">
+              Pulls Open Graph tags from the destination URL above. Only fills blank fields — your edits are kept.
+            </small>
+          </div>
+          <div class="form-group">
+            <label for="og-title">OG Title</label>
+            <input type="text" id="og-title" maxlength="255" placeholder="My amazing page">
+          </div>
+          <div class="form-group">
+            <label for="og-description">OG Description</label>
+            <textarea id="og-description" maxlength="500" placeholder="A short description for the preview"></textarea>
+          </div>
+          <div class="form-group">
+            <label for="og-image">OG Image URL</label>
+            <input type="url" id="og-image" placeholder="https://example.com/preview.png">
+          </div>
+          <div class="form-group">
+            <label for="og-type">OG Type</label>
+            <select id="og-type">
+              <option value="website">website</option>
+              <option value="article">article</option>
+              <option value="product">product</option>
+              <option value="video.other">video</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="og-twitter-card">Twitter Card</label>
+            <select id="og-twitter-card">
+              <option value="summary_large_image">summary_large_image</option>
+              <option value="summary">summary</option>
+            </select>
+          </div>
+        </div>
+
         <button type="submit" id="submit-link-btn" class="btn btn-primary">Create Link</button>
       </form>
     </div>
@@ -2151,6 +2198,14 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           }
         }
 
+        // Include Open Graph meta if enabled and at least one field is set
+        if (document.getElementById('og-meta-enabled')?.checked) {
+          const ogMeta = getOgMeta();
+          if (ogMeta.og_title || ogMeta.og_description || ogMeta.og_image) {
+            formData.og_meta = ogMeta;
+          }
+        }
+
         await apiRequest('/links', { method: 'POST', body: JSON.stringify(formData) });
         document.getElementById('create-link-modal').classList.remove('active');
         form.reset();
@@ -2170,7 +2225,10 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         setDeviceRedirects([]);
         setCityRedirects([]);
         setOsRedirects([]);
-        
+        document.getElementById('og-meta-enabled').checked = false;
+        document.getElementById('og-meta-section').style.display = 'none';
+        setOgMeta(null);
+
         await loadLinks();
         showToast('Link created successfully!', 'success');
       } catch (error) {
@@ -2287,6 +2345,17 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           setOsRedirects([]);
         }
 
+        // Set Open Graph meta if it exists
+        if (link.data.og_meta && (link.data.og_meta.og_title || link.data.og_meta.og_description || link.data.og_meta.og_image)) {
+          document.getElementById('og-meta-enabled').checked = true;
+          document.getElementById('og-meta-section').style.display = 'block';
+          setOgMeta(link.data.og_meta);
+        } else {
+          document.getElementById('og-meta-enabled').checked = false;
+          document.getElementById('og-meta-section').style.display = 'none';
+          setOgMeta(null);
+        }
+
         modal.classList.add('active');
         
         // Update form submit handler for edit mode
@@ -2337,6 +2406,15 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
               formData.os_redirects = [];
             }
 
+            // Include Open Graph meta (always include to handle clearing).
+            // An empty object signals the backend to remove any existing OG row.
+            if (document.getElementById('og-meta-enabled')?.checked) {
+              const ogMeta = getOgMeta();
+              formData.og_meta = (ogMeta.og_title || ogMeta.og_description || ogMeta.og_image) ? ogMeta : {};
+            } else {
+              formData.og_meta = {};
+            }
+
             await apiRequest('/links/' + linkId, { method: 'PUT', body: JSON.stringify(formData) });
             modal.classList.remove('active');
             // Reset modal state after successful edit
@@ -2356,7 +2434,10 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             document.getElementById('device-redirects-section').style.display = 'none';
             setGeoRedirects([]);
             setDeviceRedirects([]);
-            
+            document.getElementById('og-meta-enabled').checked = false;
+            document.getElementById('og-meta-section').style.display = 'none';
+            setOgMeta(null);
+
             title.textContent = 'Create Link';
             const submitBtn = document.getElementById('submit-link-btn');
             if (submitBtn) submitBtn.textContent = 'Create Link';
@@ -2754,6 +2835,44 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       }
     });
 
+    // Toggle Open Graph meta section
+    document.getElementById('og-meta-enabled')?.addEventListener('change', (e) => {
+      const section = document.getElementById('og-meta-section');
+      if (section) {
+        section.style.display = e.target.checked ? 'block' : 'none';
+      }
+    });
+
+    // Fetch Open Graph tags from the destination URL (fills blank fields only)
+    document.getElementById('og-fetch-btn')?.addEventListener('click', async () => {
+      const url = document.getElementById('link-url')?.value?.trim();
+      if (!url) {
+        showToast('Enter a destination URL first', 'error');
+        return;
+      }
+      const btn = document.getElementById('og-fetch-btn');
+      const originalText = btn ? btn.textContent : '';
+      if (btn) { btn.disabled = true; btn.textContent = 'Fetching…'; }
+      try {
+        const res = await apiRequest('/links/og-fetch', { method: 'POST', body: JSON.stringify({ url: url }) });
+        const og = res.data || {};
+        // Only fill blank text fields so manual edits win. The type/card selects
+        // always have a value (defaults), so we leave them to the user's choice.
+        const titleEl = document.getElementById('og-title');
+        const descEl = document.getElementById('og-description');
+        const imgEl = document.getElementById('og-image');
+        if (titleEl && !titleEl.value && og.og_title) titleEl.value = og.og_title;
+        if (descEl && !descEl.value && og.og_description) descEl.value = og.og_description;
+        if (imgEl && !imgEl.value && og.og_image) imgEl.value = og.og_image;
+        const found = og.og_title || og.og_description || og.og_image;
+        showToast(found ? 'Fetched Open Graph tags' : 'No Open Graph tags found on that page', found ? 'success' : 'warning');
+      } catch (error) {
+        showToast('Failed to fetch: ' + error.message, 'error');
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = originalText; }
+      }
+    });
+
     // Add geo redirect
     document.getElementById('add-geo-redirect')?.addEventListener('click', () => {
       const list = document.getElementById('geo-redirects-list');
@@ -2999,6 +3118,29 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           }
         });
       }
+    }
+
+    function getOgMeta() {
+      const title = document.getElementById('og-title')?.value?.trim();
+      const description = document.getElementById('og-description')?.value?.trim();
+      const image = document.getElementById('og-image')?.value?.trim();
+      const type = document.getElementById('og-type')?.value || 'website';
+      const twitterCard = document.getElementById('og-twitter-card')?.value || 'summary_large_image';
+      return {
+        og_title: title || undefined,
+        og_description: description || undefined,
+        og_image: image || undefined,
+        og_type: type,
+        twitter_card: twitterCard,
+      };
+    }
+
+    function setOgMeta(meta) {
+      document.getElementById('og-title').value = meta?.og_title || '';
+      document.getElementById('og-description').value = meta?.og_description || '';
+      document.getElementById('og-image').value = meta?.og_image || '';
+      document.getElementById('og-type').value = meta?.og_type || 'website';
+      document.getElementById('og-twitter-card').value = meta?.twitter_card || 'summary_large_image';
     }
 
     async function loadTags() {

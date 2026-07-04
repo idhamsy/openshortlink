@@ -46,6 +46,17 @@ export const osRedirectSchema = z.object({
   destination_url: z.string().url(),
 });
 
+/**
+ * Open Graph / Twitter Card metadata schema (one object per link)
+ */
+export const ogMetaSchema = z.object({
+  og_title: z.string().max(255).optional(),
+  og_description: z.string().max(500).optional(),
+  og_image: z.string().url().optional(),
+  og_type: z.enum(['website', 'article', 'product', 'video.other']).default('website'),
+  twitter_card: z.enum(['summary', 'summary_large_image']).default('summary_large_image'),
+});
+
 // ============================================================================
 // Base Schema (shared fields)
 // ============================================================================
@@ -66,6 +77,7 @@ const baseLinkSchema = z.object({
   device_redirects: z.array(deviceRedirectSchema).optional(),
   city_redirects: z.array(cityRedirectSchema).max(20).optional(),
   os_redirects: z.array(osRedirectSchema).max(20).optional(),
+  og_meta: ogMetaSchema.optional(),
 });
 
 // ============================================================================
@@ -136,6 +148,20 @@ export type GeoRedirectInput = z.infer<typeof geoRedirectSchema>;
 export type DeviceRedirectInput = z.infer<typeof deviceRedirectSchema>;
 export type CityRedirectInput = z.infer<typeof cityRedirectSchema>;
 export type OsRedirectInput = z.infer<typeof osRedirectSchema>;
+export type OgMetaSchemaInput = z.infer<typeof ogMetaSchema>;
+
+// ============================================================================
+// OG Fetch (scrape destination URL for Open Graph tags)
+// ============================================================================
+
+/**
+ * Body schema for the "Fetch from URL" action — scrapes the destination's OG tags.
+ */
+export const ogFetchSchema = z.object({
+  url: z.string().url(),
+});
+
+export type OgFetchInput = z.infer<typeof ogFetchSchema>;
 export type CreateLinkInput = z.infer<typeof createLinkSchema>;
 export type UpdateLinkInput = z.infer<typeof updateLinkSchema>;
 export type LinkQueryParams = z.infer<typeof linkQuerySchema>;

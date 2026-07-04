@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.10.0] - 2026-06-22
+
+### Added
+- **Social Media Meta (Open Graph)**: each link can carry custom Open Graph / Twitter Card tags (title, description, image, type, card). When a social crawler (Facebook, X, LinkedIn, Slack, Discord, WhatsApp, …) scrapes the short URL, the worker serves a preview page built from those tags; human visitors are redirected normally (301). Configured per link in the dashboard.
+- **"Fetch from destination URL"**: a dashboard button that scrapes the destination's existing OG/Twitter tags and pre-fills the fields (only blank fields, so manual edits win). SSRF-guarded (blocks private/loopback/link-local/cloud-metadata hosts), 8s timeout, HTML-only, bounded read.
+- DB migration `0021_add_og_meta.sql` — adds the `link_og_meta` table (one row per link, `UNIQUE(link_id)`, `ON DELETE CASCADE`).
+
+---
+
 ## [0.9.2] - 2026-06-22
 
 ### Security
