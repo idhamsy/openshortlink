@@ -40,7 +40,7 @@ export function sanitizeUser(user: object): Record<string, unknown> {
 // List all users (admin only)
 usersRouter.get('/', authMiddleware, requireRole(['admin', 'owner']), async (c) => {
   const users = await c.env.DB.prepare(
-    `SELECT id, email, username, role, global_access, created_at, updated_at, last_login_at 
+    `SELECT id, email, username, role, global_access, mfa_enabled, created_at, updated_at, last_login_at 
      FROM users 
      ORDER BY created_at DESC`
   ).all<{
@@ -49,6 +49,7 @@ usersRouter.get('/', authMiddleware, requireRole(['admin', 'owner']), async (c) 
     username?: string;
     role: string;
     global_access: number;
+    mfa_enabled?: number;
     created_at: number;
     updated_at: number;
     last_login_at?: number;
@@ -76,6 +77,7 @@ usersRouter.get('/', authMiddleware, requireRole(['admin', 'owner']), async (c) 
     return {
       ...user,
       global_access: user.global_access === 1,
+      mfa_enabled: user.mfa_enabled === 1, // drives the dashboard's Reset MFA button
       domain_ids: userDomainIds,
     };
   });
