@@ -465,5 +465,42 @@ usersRouter.delete('/:id', authMiddleware, requireRole(['admin', 'owner']), asyn
   });
 });
 
+// Reset a user's MFA (admin only). Recovery path when a user lost their authenticator,
+// or when SETUP_TOKEN changed and their encrypted MFA secret can no longer be read.
+// Not for your own account (use /auth/mfa/disable, which requires re-authentication);
+// only an owner can reset another owner's MFA.
+usersRouter.post('/:id/mfa/reset', authMiddleware, requireRole(['admin', 'owner']), async (c) => {
+  const currentUser = c.get('user') as { id: string; role: string };
+  const targetUserId = c.req.param('id');
+
+  if (currentUser.id === targetUserId) {
+    throw new HTTPException(400, { message: 'Use Settings → Disable MFA for your own account' });
+  }
+
+  const targetUser = await getUserById(c.env, targetUserId);
+  if (!targetUser) {
+    throw new HTTPException(404, { message: 'User not found' });
+  }
+  if (targetUser.role === 'owner' && currentUser.role !== 'owner') {
+    throw new HTTPException(403, { message: "Only an owner can reset an owner's MFA" });
+  }
+
+  await updateUser(c.env, targetUserId, {
+    mfa_enabled: 0,
+    mfa_secret: null,
+    mfa_backup_codes: null,
+  } as any);
+
+  await logAuditEvent(c.env, {
+    user_id: currentUser.id,
+    event_type: 'mfa_disabled',
+    ip_address: getIpAddress(c.req.raw),
+    user_agent: getUserAgent(c.req.raw),
+    details: { reset_by_admin: true, target_user_id: targetUserId, target_username: targetUser.username },
+  });
+
+  return c.json({ success: true, message: 'MFA reset. The user can sign in with their password and enrol MFA again.' });
+});
+
 export { usersRouter };
 

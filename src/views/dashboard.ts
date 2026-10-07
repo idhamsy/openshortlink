@@ -6863,9 +6863,11 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
               })
             });
             
-            successDiv.textContent = 'Password changed successfully!';
+            // The server signs out every session (including this one) on a password change.
+            successDiv.textContent = 'Password changed. For security you have been signed out — redirecting to sign in...';
             successDiv.style.display = 'block';
             changePwdForm.reset();
+            setTimeout(() => { window.location.href = '/dashboard/login'; }, 2500);
           } catch (error) {
             errorDiv.textContent = error.message || 'Failed to change password';
             errorDiv.style.display = 'block';
@@ -7281,6 +7283,9 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             html += '<td>' + lastLogin + '</td>';
             html += '<td>';
             html += '<button class="btn btn-sm btn-primary" data-action="edit-user" data-user-id="' + userIdEscaped + '" style="margin-right: 0.5rem;">Edit</button>';
+            if (user.mfa_enabled) {
+              html += '<button class="btn btn-sm btn-secondary" data-action="reset-user-mfa" data-user-id="' + userIdEscaped + '" style="margin-right: 0.5rem;">Reset MFA</button>';
+            }
             html += '<button class="btn btn-sm btn-secondary" data-action="delete-user" data-user-id="' + userIdEscaped + '">Delete</button>';
             html += '</td>';
             html += '</tr>';
@@ -7315,6 +7320,13 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           const userId = btn.getAttribute('data-user-id');
           if (userId) {
             btn.addEventListener('click', () => deleteUser(userId));
+          }
+        });
+
+        document.querySelectorAll('[data-action="reset-user-mfa"]').forEach(btn => {
+          const userId = btn.getAttribute('data-user-id');
+          if (userId) {
+            btn.addEventListener('click', () => resetUserMfa(userId));
           }
         });
         
@@ -7652,6 +7664,19 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       }
     }
     
+    async function resetUserMfa(userId) {
+      if (!confirm('Reset MFA for this user? They will sign in with just their password and should enrol MFA again.')) {
+        return;
+      }
+      try {
+        await apiRequest('/users/' + userId + '/mfa/reset', { method: 'POST' });
+        showToast('MFA reset for this user.', 'success');
+        await loadUserManagementSection();
+      } catch (error) {
+        showToast('Failed to reset MFA: ' + error.message, 'error');
+      }
+    }
+
     // Make functions globally available
     window.editUser = editUser;
     window.deleteUser = deleteUser;

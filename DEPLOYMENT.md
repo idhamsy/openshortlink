@@ -188,7 +188,7 @@ After deployment, visit your worker URL to complete the initial setup:
 
 | Secret | Description | How to Set |
 |--------|-------------|------------|
-| `SETUP_TOKEN` | Initial setup token | `wrangler secret put SETUP_TOKEN` |
+| `SETUP_TOKEN` | Initial setup token. **Keep it after setup:** since v0.10.1 it also encrypts users' MFA secrets (see below) | `wrangler secret put SETUP_TOKEN` |
 | `CLOUDFLARE_ACCOUNT_ID` | Your Cloudflare account ID | `wrangler secret put CLOUDFLARE_ACCOUNT_ID` |
 | `CLOUDFLARE_API_TOKEN` | API token for Analytics Engine | `wrangler secret put CLOUDFLARE_API_TOKEN` |
 
@@ -225,7 +225,7 @@ Make sure the `id` in `wrangler.toml` matches the ID from `wrangler kv:namespace
 
 ### "Setup token invalid" error
 
-The `SETUP_TOKEN` secret must match the token you're entering in the setup page. Regenerate if needed:
+The `SETUP_TOKEN` secret must match the token you're entering in the setup page. Regenerate if needed (before any user has enabled MFA — see the warning below):
 
 ```bash
 # Choose your security level:
@@ -282,10 +282,29 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 ```
 
+### `SETUP_TOKEN` also protects MFA secrets (since v0.10.1)
+
+When `SETUP_TOKEN` is set, each user's MFA (TOTP) secret is stored encrypted with it.
+**Do not delete or change `SETUP_TOKEN` after users have enabled MFA.** If you do, those
+users' authenticator codes stop working (login answers with "Your MFA secret can no longer be
+read"). To recover:
+
+- The user signs in with one of their **backup codes** (these keep working), then disables
+  and re-enables MFA in Settings; or
+- An admin opens **Users → Reset MFA** for that user (an owner's MFA can only be reset by
+  another owner); the user signs in with their password and enrols MFA again.
+
+If the only owner is locked out, clear their MFA directly in D1:
+
+```bash
+wrangler d1 execute <your-db-name> --remote --command \
+  "UPDATE users SET mfa_enabled = 0, mfa_secret = NULL, mfa_backup_codes = NULL WHERE username = '<owner-username>'"
+```
+
 ## Security Best Practices
 
 1. **Never commit `.dev.vars`** - It's gitignored by default
-2. **Rotate secrets regularly** - Use `wrangler secret put` to update
+2. **Rotate secrets regularly** - Use `wrangler secret put` to update (except `SETUP_TOKEN` once users have MFA — see above)
 3. **Use strong SETUP_TOKEN** - Generate with `openssl rand -hex 32`
 4. **Limit API token permissions** - Only grant what's needed
 5. **Use custom domains** - Configure routes in `wrangler.toml` for production use

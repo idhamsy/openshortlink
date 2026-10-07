@@ -8,7 +8,7 @@
 // Tests for backup-code hashing + constant-time verification (A2/A10).
 
 import { describe, it, expect } from 'vitest';
-import { hashBackupCodes, verifyBackupCode } from '../mfa';
+import { hashBackupCodes, verifyBackupCode, encryptMFASecret, tryDecryptMFASecret } from '../mfa';
 
 describe('MFA backup codes', () => {
   describe('hashBackupCodes (A2)', () => {
@@ -56,5 +56,29 @@ describe('MFA backup codes', () => {
       const result = await verifyBackupCode('not-json', '12345678');
       expect(result.valid).toBe(false);
     });
+  });
+});
+
+describe('tryDecryptMFASecret (SETUP_TOKEN rotation)', () => {
+  const secret = 'JBSWY3DPEHPK3PXP';
+
+  it('round-trips with the same SETUP_TOKEN', async () => {
+    const stored = await encryptMFASecret({ SETUP_TOKEN: 'token-a' } as any, secret);
+    expect(stored).not.toBe(secret);
+    expect(await tryDecryptMFASecret({ SETUP_TOKEN: 'token-a' } as any, stored)).toBe(secret);
+  });
+
+  it('returns null (does not throw) after SETUP_TOKEN is changed', async () => {
+    const stored = await encryptMFASecret({ SETUP_TOKEN: 'token-a' } as any, secret);
+    expect(await tryDecryptMFASecret({ SETUP_TOKEN: 'token-b' } as any, stored)).toBeNull();
+  });
+
+  it('returns null (does not throw) after SETUP_TOKEN is removed', async () => {
+    const stored = await encryptMFASecret({ SETUP_TOKEN: 'token-a' } as any, secret);
+    expect(await tryDecryptMFASecret({} as any, stored)).toBeNull();
+  });
+
+  it('passes legacy plaintext secrets through', async () => {
+    expect(await tryDecryptMFASecret({} as any, secret)).toBe(secret);
   });
 });
