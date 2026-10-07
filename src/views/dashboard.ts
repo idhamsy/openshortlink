@@ -7231,6 +7231,11 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         // Load users list
         const users = await apiRequest('/users');
         const usersList = users.data || [];
+
+        // Who is looking: Reset MFA is hidden on your own row and, for admins, on owners' rows
+        // (the API refuses both).
+        let viewer = {};
+        try { viewer = (await apiRequest('/auth/me')).data || {}; } catch (e) { viewer = {}; }
         
         // Load domains for domain assignment
         const domains = await apiRequest('/domains');
@@ -7283,7 +7288,8 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             html += '<td>' + lastLogin + '</td>';
             html += '<td>';
             html += '<button class="btn btn-sm btn-primary" data-action="edit-user" data-user-id="' + userIdEscaped + '" style="margin-right: 0.5rem;">Edit</button>';
-            if (user.mfa_enabled) {
+            const canResetMfa = user.mfa_enabled && user.id !== viewer.id && (user.role !== 'owner' || viewer.role === 'owner');
+            if (canResetMfa) {
               html += '<button class="btn btn-sm btn-secondary" data-action="reset-user-mfa" data-user-id="' + userIdEscaped + '" style="margin-right: 0.5rem;">Reset MFA</button>';
             }
             html += '<button class="btn btn-sm btn-secondary" data-action="delete-user" data-user-id="' + userIdEscaped + '">Delete</button>';
