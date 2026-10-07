@@ -289,8 +289,8 @@ When `SETUP_TOKEN` is set, each user's MFA (TOTP) secret is stored encrypted wit
 users' authenticator codes stop working (login answers with "Your MFA secret can no longer be
 read"). To recover:
 
-- The user signs in with one of their **backup codes** (these keep working), then disables
-  and re-enables MFA in Settings; or
+- The user signs in with one of their **backup codes** (these keep working), then uses
+  **Settings → Disable MFA** with their **account password** and enables MFA again; or
 - An admin opens **Users → Reset MFA** for that user (an owner's MFA can only be reset by
   another owner); the user signs in with their password and enrols MFA again.
 

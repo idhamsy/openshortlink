@@ -7927,14 +7927,17 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         return;
       }
 
-      // The API now requires a valid current MFA code (or account password) to disable MFA.
-      const code = prompt('Enter your current MFA code to disable MFA:');
-      if (!code) return;
+      // The API requires a valid current MFA code or the account password. The password is
+      // the way out when the authenticator no longer works (e.g. after SETUP_TOKEN changed).
+      const credential = prompt('Enter your current 6-digit MFA code, or your account password if your authenticator no longer works:');
+      if (!credential) return;
+      const trimmed = credential.trim();
+      const isTotp = trimmed.length === 6 && [...trimmed].every(ch => ch >= '0' && ch <= '9');
 
       try {
         await apiRequest('/auth/mfa/disable', {
           method: 'POST',
-          body: JSON.stringify({ mfa_code: code })
+          body: JSON.stringify(isTotp ? { mfa_code: trimmed } : { password: credential })
         });
         
         showToast('MFA disabled successfully', 'success');
