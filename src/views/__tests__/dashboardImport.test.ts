@@ -46,7 +46,7 @@ describe('dashboard CSV import dialog (rendered)', () => {
   });
 
   it('every inline script still parses', () => {
-    const scripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map(m => m[1]).filter(s => s.trim());
+    const scripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script[^>]*>/gi)].map(m => m[1]).filter(s => s.trim());
     expect(scripts.length).toBeGreaterThan(0);
     for (const s of scripts) expect(() => new Function(s)).not.toThrow();
   });

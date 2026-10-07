@@ -13,7 +13,7 @@ const N = 'testNonce123';
 
 /** Body of the inline <script> blocks (everything between the tags). */
 function scripts(html: string): string {
-  return [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]).join('\n');
+  return [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script[^>]*>/gi)].map((m) => m[1]).join('\n');
 }
 
 describe('renderPixelInterstitial snippets', () => {
@@ -64,7 +64,7 @@ describe('renderPixelInterstitial snippets', () => {
 
   it('puts the nonce on every script tag', () => {
     const html = renderPixelInterstitial([{ pixel_type: 'facebook', pixel_id: '1' }], DEST, N);
-    const tags = html.match(/<script[^>]*>/g) || [];
+    const tags = html.match(/<script\b[^>]*>/gi) || [];
     expect(tags.length).toBeGreaterThan(0);
     for (const t of tags) expect(t).toContain(`nonce="${N}"`);
   });
@@ -133,7 +133,7 @@ describe('renderPixelInterstitial output is valid JavaScript', () => {
       { pixel_type: 'linkedin', pixel_id: '2' }, { pixel_type: 'tiktok', pixel_id: 'T3' },
       { pixel_type: 'twitter', pixel_id: 'x4' },
     ], "https://e.example.com/'  \n\"</script>", N);
-    const blocks = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+    const blocks = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script[^>]*>/gi)].map((m) => m[1]);
     expect(blocks).toHaveLength(2);
     for (const b of blocks) expect(() => new Function(b)).not.toThrow();
   });
