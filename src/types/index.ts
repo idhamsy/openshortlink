@@ -7,6 +7,8 @@
 
 // Core types for the openshortlink platform
 
+import type { PixelType } from '../utils/pixelIds';
+
 export interface Link {
   id: string;
   domain_id: string;
@@ -220,6 +222,10 @@ export interface CachedLink {
     og_type: string;
     twitter_card: string;
   };
+  pixels?: Array<{
+    pixel_type: PixelType;
+    pixel_id: string;
+  }>;
   route?: string; // The specific route this link is assigned to (for strict routing)
   domain_routing_path?: string; // The domain's default routing path (for legacy strict routing check)
 }

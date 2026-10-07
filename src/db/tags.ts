@@ -221,16 +221,18 @@ export async function getLinksTagsBatch(
   return tagsMap;
 }
 
-export async function setLinkTags(env: Env, linkId: string, tagIds: string[]): Promise<void> {
-  // Delete existing tags
-  await env.DB.prepare('DELETE FROM link_tags WHERE link_id = ?').bind(linkId).run();
-
-  // Insert new tags
-  if (tagIds.length > 0) {
-    const stmt = env.DB.prepare('INSERT INTO link_tags (link_id, tag_id) VALUES (?, ?)');
-    for (const tagId of tagIds) {
-      await stmt.bind(linkId, tagId).run();
-    }
+/** Builds (does not execute) the statements that replace a link's tag set: DELETE + one INSERT per tag. */
+export function buildSetLinkTagsStatements(env: Env, linkId: string, tagIds: string[]): D1PreparedStatement[] {
+  const statements: D1PreparedStatement[] = [
+    env.DB.prepare('DELETE FROM link_tags WHERE link_id = ?').bind(linkId),
+  ];
+  for (const tagId of tagIds) {
+    statements.push(env.DB.prepare('INSERT INTO link_tags (link_id, tag_id) VALUES (?, ?)').bind(linkId, tagId));
   }
+  return statements;
+}
+
+export async function setLinkTags(env: Env, linkId: string, tagIds: string[]): Promise<void> {
+  await env.DB.batch(buildSetLinkTagsStatements(env, linkId, tagIds));
 }
 

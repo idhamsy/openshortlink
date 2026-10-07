@@ -5,20 +5,29 @@
  * See LICENSE file or https://www.gnu.org/licenses/agpl-3.0.txt
  */
 
-import type { Env } from '../types';
+import type { Env, Domain } from '../types';
 import { getDomainByName } from '../db/domains';
 
 /**
  * Check if a destination URL would cause an infinite redirect loop
  * by pointing to a reserved route on a managed domain.
  */
-export async function isInfiniteRedirect(env: Env, destinationUrl: string): Promise<boolean> {
+export async function isInfiniteRedirect(
+    env: Env,
+    destinationUrl: string,
+    memo?: Map<string, Domain | null>
+): Promise<boolean> {
     try {
         const url = new URL(destinationUrl);
         const hostname = url.hostname;
 
         // Check if hostname matches a managed domain
-        const domain = await getDomainByName(env, hostname);
+        // Optional per-request memo (by hostname) so bulk callers pay one lookup per host.
+        let domain: Domain | null | undefined = memo?.get(hostname);
+        if (domain === undefined) {
+            domain = await getDomainByName(env, hostname);
+            memo?.set(hostname, domain ?? null);
+        }
         if (!domain) {
             return false;
         }

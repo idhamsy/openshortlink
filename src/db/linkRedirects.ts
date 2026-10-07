@@ -58,23 +58,30 @@ export async function getGeoRedirects(env: Env, linkId: string): Promise<LinkGeo
   return result.results || [];
 }
 
+export function buildUpsertGeoRedirectStatement(
+  env: Env,
+  linkId: string,
+  countryCode: string,
+  destinationUrl: string
+): D1PreparedStatement {
+  const id = generateId('geo');
+  const now = Date.now();
+
+  return env.DB.prepare(
+    `INSERT INTO link_geo_redirects (id, link_id, country_code, destination_url, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(link_id, country_code)
+     DO UPDATE SET destination_url = ?, updated_at = ?`
+  ).bind(id, linkId, countryCode.toUpperCase(), destinationUrl, now, now, destinationUrl, now);
+}
+
 export async function upsertGeoRedirect(
   env: Env,
   linkId: string,
   countryCode: string,
   destinationUrl: string
 ): Promise<void> {
-  const id = generateId('geo');
-  const now = Date.now();
-
-  await env.DB.prepare(
-    `INSERT INTO link_geo_redirects (id, link_id, country_code, destination_url, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?)
-     ON CONFLICT(link_id, country_code) 
-     DO UPDATE SET destination_url = ?, updated_at = ?`
-  )
-    .bind(id, linkId, countryCode.toUpperCase(), destinationUrl, now, now, destinationUrl, now)
-    .run();
+  await buildUpsertGeoRedirectStatement(env, linkId, countryCode, destinationUrl).run();
 }
 
 export async function deleteGeoRedirect(
@@ -103,23 +110,30 @@ export async function getDeviceRedirects(env: Env, linkId: string): Promise<Link
   return result.results || [];
 }
 
+export function buildUpsertDeviceRedirectStatement(
+  env: Env,
+  linkId: string,
+  deviceType: 'desktop' | 'mobile' | 'tablet',
+  destinationUrl: string
+): D1PreparedStatement {
+  const id = generateId('device');
+  const now = Date.now();
+
+  return env.DB.prepare(
+    `INSERT INTO link_device_redirects (id, link_id, device_type, destination_url, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(link_id, device_type)
+     DO UPDATE SET destination_url = ?, updated_at = ?`
+  ).bind(id, linkId, deviceType, destinationUrl, now, now, destinationUrl, now);
+}
+
 export async function upsertDeviceRedirect(
   env: Env,
   linkId: string,
   deviceType: 'desktop' | 'mobile' | 'tablet',
   destinationUrl: string
 ): Promise<void> {
-  const id = generateId('device');
-  const now = Date.now();
-
-  await env.DB.prepare(
-    `INSERT INTO link_device_redirects (id, link_id, device_type, destination_url, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?)
-     ON CONFLICT(link_id, device_type) 
-     DO UPDATE SET destination_url = ?, updated_at = ?`
-  )
-    .bind(id, linkId, deviceType, destinationUrl, now, now, destinationUrl, now)
-    .run();
+  await buildUpsertDeviceRedirectStatement(env, linkId, deviceType, destinationUrl).run();
 }
 
 export async function deleteDeviceRedirect(
@@ -148,23 +162,30 @@ export async function getCityRedirects(env: Env, linkId: string): Promise<LinkCi
   return result.results || [];
 }
 
+export function buildUpsertCityRedirectStatement(
+  env: Env,
+  linkId: string,
+  cityName: string,
+  destinationUrl: string
+): D1PreparedStatement {
+  const id = generateId('city');
+  const now = Date.now();
+
+  return env.DB.prepare(
+    `INSERT INTO link_city_redirects (id, link_id, city_name, destination_url, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(link_id, city_name)
+     DO UPDATE SET destination_url = ?, updated_at = ?`
+  ).bind(id, linkId, cityName.toLowerCase(), destinationUrl, now, now, destinationUrl, now);
+}
+
 export async function upsertCityRedirect(
   env: Env,
   linkId: string,
   cityName: string,
   destinationUrl: string
 ): Promise<void> {
-  const id = generateId('city');
-  const now = Date.now();
-
-  await env.DB.prepare(
-    `INSERT INTO link_city_redirects (id, link_id, city_name, destination_url, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?)
-     ON CONFLICT(link_id, city_name) 
-     DO UPDATE SET destination_url = ?, updated_at = ?`
-  )
-    .bind(id, linkId, cityName.toLowerCase(), destinationUrl, now, now, destinationUrl, now)
-    .run();
+  await buildUpsertCityRedirectStatement(env, linkId, cityName, destinationUrl).run();
 }
 
 export async function deleteCityRedirect(
@@ -195,23 +216,30 @@ export async function getOsRedirects(env: Env, linkId: string): Promise<LinkOsRe
   return result.results || [];
 }
 
+export function buildUpsertOsRedirectStatement(
+  env: Env,
+  linkId: string,
+  os: 'android' | 'ios',
+  destinationUrl: string
+): D1PreparedStatement {
+  const id = generateId('os');
+  const now = Date.now();
+
+  return env.DB.prepare(
+    `INSERT INTO link_os_redirects (id, link_id, os, destination_url, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(link_id, os)
+     DO UPDATE SET destination_url = ?, updated_at = ?`
+  ).bind(id, linkId, os, destinationUrl, now, now, destinationUrl, now);
+}
+
 export async function upsertOsRedirect(
   env: Env,
   linkId: string,
   os: 'android' | 'ios',
   destinationUrl: string
 ): Promise<void> {
-  const id = generateId('os');
-  const now = Date.now();
-
-  await env.DB.prepare(
-    `INSERT INTO link_os_redirects (id, link_id, os, destination_url, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?)
-     ON CONFLICT(link_id, os) 
-     DO UPDATE SET destination_url = ?, updated_at = ?`
-  )
-    .bind(id, linkId, os, destinationUrl, now, now, destinationUrl, now)
-    .run();
+  await buildUpsertOsRedirectStatement(env, linkId, os, destinationUrl).run();
 }
 
 export async function deleteOsRedirect(
@@ -461,3 +489,19 @@ export async function saveLinkRedirects(env: Env, linkId: string, data: Redirect
   }
 }
 
+
+const REDIRECT_TABLES = {
+  geo: 'link_geo_redirects',
+  device: 'link_device_redirects',
+  city: 'link_city_redirects',
+  os: 'link_os_redirects',
+} as const;
+
+/** Builds (does not execute) one DELETE per requested redirect kind for a link. */
+export function buildClearRedirectsStatements(
+  env: Env,
+  linkId: string,
+  kinds: Array<'geo' | 'device' | 'city' | 'os'>
+): D1PreparedStatement[] {
+  return kinds.map((k) => env.DB.prepare(`DELETE FROM ${REDIRECT_TABLES[k]} WHERE link_id = ?`).bind(linkId));
+}

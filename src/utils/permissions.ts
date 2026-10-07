@@ -32,6 +32,7 @@ export function hasPermission(user: User, permission: string): boolean {
     'view_analytics': ['admin', 'user', 'analyst'],
     'manage_tags': ['admin', 'user'],
     'manage_categories': ['admin', 'user'],
+    'manage_pixels': ['admin', 'user'],
     'manage_api_keys': ['admin'],
   };
   

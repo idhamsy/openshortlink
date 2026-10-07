@@ -37,29 +37,35 @@ export async function getOgMeta(env: Env, linkId: string): Promise<LinkOgMeta | 
   return result || null;
 }
 
-export async function upsertOgMeta(env: Env, linkId: string, meta: OgMetaInput): Promise<void> {
+export function buildUpsertOgMetaStatement(env: Env, linkId: string, meta: OgMetaInput): D1PreparedStatement {
   const id = generateId('og');
   const now = Date.now();
   const ogType = meta.og_type || 'website';
   const twitterCard = meta.twitter_card || 'summary_large_image';
-  await env.DB.prepare(
+  return env.DB.prepare(
     `INSERT INTO link_og_meta
        (id, link_id, og_title, og_description, og_image, og_type, twitter_card, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(link_id) DO UPDATE SET
        og_title = ?, og_description = ?, og_image = ?, og_type = ?, twitter_card = ?, updated_at = ?`
-  )
-    .bind(
-      id, linkId,
-      meta.og_title ?? null, meta.og_description ?? null, meta.og_image ?? null, ogType, twitterCard,
-      now, now,
-      meta.og_title ?? null, meta.og_description ?? null, meta.og_image ?? null, ogType, twitterCard, now
-    )
-    .run();
+  ).bind(
+    id, linkId,
+    meta.og_title ?? null, meta.og_description ?? null, meta.og_image ?? null, ogType, twitterCard,
+    now, now,
+    meta.og_title ?? null, meta.og_description ?? null, meta.og_image ?? null, ogType, twitterCard, now
+  );
+}
+
+export function buildClearOgMetaStatement(env: Env, linkId: string): D1PreparedStatement {
+  return env.DB.prepare('DELETE FROM link_og_meta WHERE link_id = ?').bind(linkId);
+}
+
+export async function upsertOgMeta(env: Env, linkId: string, meta: OgMetaInput): Promise<void> {
+  await buildUpsertOgMetaStatement(env, linkId, meta).run();
 }
 
 export async function clearOgMeta(env: Env, linkId: string): Promise<void> {
-  await env.DB.prepare('DELETE FROM link_og_meta WHERE link_id = ?').bind(linkId).run();
+  await buildClearOgMetaStatement(env, linkId).run();
 }
 
 /** Batch fetch for the link list endpoint. Map of link_id -> meta. */

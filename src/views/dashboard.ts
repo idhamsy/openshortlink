@@ -8,6 +8,7 @@
 import { html } from '../utils/html';
 import { ASSET_VERSION } from '../utils/constants';
 import { LOGO_DATA_URI } from '../utils/logo';
+import { PIXEL_RULES_CLIENT } from '../utils/pixelIds';
 
 export function dashboardHtml(csrfToken: string, nonce: string): string {
   return `<!DOCTYPE html>
@@ -71,6 +72,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             <a href="#manual-integration" class="nav-submenu-link" data-page="manual-integration">Manual Integration</a>
           </div>
           <a href="#domains" class="nav-link" data-page="domains">Domains</a>
+          <a href="#pixels" class="nav-link" data-page="pixels">Pixels</a>
           <div class="nav-link" id="settings-nav-link" data-page="settings">
             <span>Settings</span>
             <span class="nav-link-toggle">▶</span>
@@ -581,6 +583,16 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           </div>
         </div>
         
+        <div id="pixels-page" class="page">
+          <div class="page-header" style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem;">
+            <div>
+              <h1 style="margin: 0;">Pixels</h1>
+              <small style="color: var(--secondary-color);">Retargeting pixels saved for the selected domain. Tick them on links, or mark one as default to pre-select it on new links.</small>
+            </div>
+            <button id="add-pixel-btn" class="btn btn-primary" type="button">+ Add pixel</button>
+          </div>
+          <div id="pixels-list" style="background: var(--card-bg); padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); overflow-x: auto;"></div>
+        </div>
         <div id="tags-page" class="page">
           <div class="page-header" style="display: flex; align-items: center; justify-content: flex-start; gap: 1rem; margin-bottom: 1.5rem;">
             <button id="back-to-links-from-tags" class="btn btn-secondary" style="padding: 0.5rem 1rem;">← Back to Dashboard</button>
@@ -877,7 +889,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         
         <!-- Geo Redirects Section -->
         <div class="form-group">
-          <label>
+          <label class="checkbox-label">
             <input type="checkbox" id="geo-redirect-enabled">
             Enable Country-Specific Redirects
           </label>
@@ -899,7 +911,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
 
         <!-- Device Redirects Section -->
         <div class="form-group">
-          <label>
+          <label class="checkbox-label">
             <input type="checkbox" id="device-redirect-enabled">
             Enable Device-Specific Redirects
           </label>
@@ -928,7 +940,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
 
         <!-- City Redirects Section -->
         <div class="form-group">
-          <label>
+          <label class="checkbox-label">
             <input type="checkbox" id="city-redirect-enabled">
             Enable City-Specific Redirects
           </label>
@@ -958,7 +970,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
 
         <!-- OS Redirects Section -->
         <div class="form-group">
-          <label>
+          <label class="checkbox-label">
             <input type="checkbox" id="os-redirect-enabled">
             Enable OS-Specific Redirects
           </label>
@@ -983,7 +995,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
 
         <!-- Social Media Meta (Open Graph) Section -->
         <div class="form-group">
-          <label>
+          <label class="checkbox-label">
             <input type="checkbox" id="og-meta-enabled">
             Customize Social Media Preview (Open Graph)
           </label>
@@ -1028,7 +1040,51 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           </div>
         </div>
 
+        <!-- Retargeting Pixels (from the domain's pixel library) -->
+        <div class="form-group">
+          <label>Retargeting Pixels</label>
+          <small style="display: block; margin-top: 0.25rem; color: var(--secondary-color);">
+            Tick pixels saved for this link's domain (max 5). Visitors briefly see a redirect page while the pixels load; crawlers are redirected directly. Manage them on the <a href="#pixels" target="_blank" rel="noopener">Pixels page</a>.
+          </small>
+          <small id="pixel-redirect-warning" style="display: block; margin-top: 0.25rem; color: var(--secondary-color);">
+            Tip: use a 302/307 redirect for links you add pixels to. Browsers cache 301/308 redirects for a long time, so people who already opened a permanent link may skip the pixel page.
+          </small>
+          <small id="pixel-origin-warning" style="display: block; margin-top: 0.25rem; color: var(--secondary-color);">
+            Pixel scripts are third-party code that run on your short-link domain. For best isolation, serve short links from a separate domain than this dashboard.
+          </small>
+          <div id="link-pixel-picker" style="margin-top: 0.5rem; background: var(--bg-color); padding: 0.75rem 1rem; border-radius: 4px;"></div>
+          <small id="link-pixel-count" style="display: block; margin-top: 0.25rem; color: var(--secondary-color);"></small>
+        </div>
+
         <button type="submit" id="submit-link-btn" class="btn btn-primary">Create Link</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="pixel-modal" class="modal">
+    <div class="modal-content" style="max-width: 520px;" role="dialog" aria-modal="true" aria-labelledby="pixel-modal-title">
+      <button type="button" class="close" id="close-pixel-modal" aria-label="Close" style="background:none;border:none;padding:0;">&times;</button>
+      <h2 id="pixel-modal-title">Add pixel</h2>
+      <form id="pixel-form">
+        <input type="hidden" id="pixel-form-id">
+        <div class="form-group">
+          <label for="pixel-form-name">Name</label>
+          <input type="text" id="pixel-form-name" maxlength="100" placeholder="Main Meta pixel" required>
+        </div>
+        <div class="form-group">
+          <label for="pixel-form-type">Platform</label>
+          <select id="pixel-form-type"></select>
+        </div>
+        <div class="form-group">
+          <label for="pixel-form-pixel-id">Pixel / tag ID</label>
+          <input type="text" id="pixel-form-pixel-id" maxlength="64" required>
+          <small id="pixel-form-hint" style="display: block; margin-top: 0.25rem; color: var(--secondary-color);"></small>
+          <small id="pixel-form-error" style="display: none; margin-top: 0.25rem; color: #dc3545;"></small>
+        </div>
+        <div class="form-group">
+          <label class="checkbox-label"><input type="checkbox" id="pixel-form-default"> Default for new links in this domain</label>
+        </div>
+        <button type="submit" class="btn btn-primary">Save</button>
       </form>
     </div>
   </div>
@@ -1050,7 +1106,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           <small style="display: block; margin-top: 0.25rem; color: var(--secondary-color);">Select one or more domains. If none selected, all domains are allowed.</small>
         </div>
         <div class="form-group">
-          <label>
+          <label class="checkbox-label">
             <input type="checkbox" id="api-key-allow-all-ips" checked>
             Allow All IP Addresses
           </label>
@@ -1061,7 +1117,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           <small style="display: block; margin-top: 0.25rem; color: var(--secondary-color);">Enter one IP address per line. Supports both IPv4 and IPv6 addresses.</small>
         </div>
         <div class="form-group">
-          <label>
+          <label class="checkbox-label">
             <input type="checkbox" id="api-key-never-expire" checked>
             Never Expire
           </label>
@@ -1112,6 +1168,15 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           </select>
           <small style="display: block; margin-top: 0.25rem; color: var(--secondary-color);">Only one domain per CSV file</small>
         </div>
+        <div class="form-group">
+          <label for="import-on-existing">If a slug already exists</label>
+          <select id="import-on-existing">
+            <option value="skip" selected>Skip the row</option>
+            <option value="error">Report an error</option>
+            <option value="update">Update the existing link</option>
+          </select>
+          <small style="display: block; margin-top: 0.25rem; color: var(--secondary-color);">Blank cells leave a field unchanged.</small>
+        </div>
         <div id="csv-preview-section" style="display: none; margin-top: 1.5rem;">
           <h3 style="margin-bottom: 1rem;">Column Mapping</h3>
           <div style="background: var(--bg-color); padding: 1rem; border-radius: 4px; margin-bottom: 1rem;">
@@ -1146,10 +1211,16 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       <div id="import-summary" class="import-summary" style="display: none;">
         <div class="summary-stats">
           <div class="stat-success">
-            ✓ <span id="success-count">0</span> succeeded
+            ✓ <span id="created-count">0</span> created
+          </div>
+          <div class="stat-success">
+            ↻ <span id="updated-count">0</span> updated
+          </div>
+          <div class="stat-skipped">
+            ↷ <span id="skipped-count">0</span> skipped
           </div>
           <div class="stat-error">
-            ✗ <span id="error-count">0</span> failed
+            ✗ <span id="error-count">0</span> errors
           </div>
         </div>
         
@@ -1636,6 +1707,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           loadAllTagsForFilter(); // Load all tags for filter dropdown
         }
         else if (pageName === 'domains') loadDomains();
+        else if (pageName === 'pixels') loadPixelsPage();
         else if (pageName === 'integrations') {
           loadApiKeys();
         }
@@ -1839,7 +1911,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
                 '\u003cbutton class=\"btn btn-sm\" data-action=\"edit\" data-link-id=\"' + linkIdEscaped + '\" style=\"margin-right: 0.5rem;\"\u003eEdit\u003c/button\u003e' +
                 '\u003cbutton class=\"btn btn-sm btn-secondary\" data-action=\"qr\" data-link-id=\"' + linkIdEscaped + '\" data-domain=\"' + escapeAttr(link.domain_name || '') + '\" data-slug=\"' + escapeAttr(link.slug || '') + '\" data-route=\"' + escapeAttr(route) + '\" style=\"margin-right: 0.5rem;\"\u003e📱 QR\u003c/button\u003e' +
                 '\u003cbutton class=\"btn btn-sm btn-secondary\" data-action=\"analytics\" data-link-id=\"' + linkIdEscaped + '\" style=\"margin-right: 0.5rem;\"\u003e📊 Analytics\u003c/button\u003e' +
-                '\u003cbutton class=\"btn btn-sm btn-secondary\" data-action=\"delete\" data-link-id=\"' + linkIdEscaped + '\"\u003eDelete\u003c/button\u003e' +
+                '\u003cbutton class=\"btn btn-sm btn-danger\" data-action=\"delete\" data-link-id=\"' + linkIdEscaped + '\"\u003eDelete\u003c/button\u003e' +
               '</td>' +
             '</tr>';
           }).join('');
@@ -2111,7 +2183,8 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         await loadTags();
         await loadCategories();
         modal.classList.add('active');
-        loadDomainsForSelect();
+        await loadDomainsForSelect();
+        loadLinkPixelPicker(document.getElementById('link-domain').value, null, true);
       });
       
       closeBtn?.addEventListener('click', () => {
@@ -2297,6 +2370,8 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           }
         }
 
+        if (linkPixelPickerLoaded) formData.pixel_ids = getSelectedPixelIds();
+
         await apiRequest('/links', { method: 'POST', body: JSON.stringify(formData) });
         document.getElementById('create-link-modal').classList.remove('active');
         form.reset();
@@ -2447,6 +2522,8 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           setOgMeta(null);
         }
 
+        loadLinkPixelPicker(link.data.domain_id, (link.data.pixels || []).map(p => p.id), false);
+
         modal.classList.add('active');
         
         // Update form submit handler for edit mode
@@ -2505,6 +2582,8 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             } else {
               formData.og_meta = {};
             }
+
+            if (linkPixelPickerLoaded) formData.pixel_ids = getSelectedPixelIds();
 
             await apiRequest('/links/' + linkId, { method: 'PUT', body: JSON.stringify(formData) });
             modal.classList.remove('active');
@@ -2934,6 +3013,194 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       }
     });
 
+    // ---- Pixel library (per domain) ----
+    const PIXEL_RULES = ${JSON.stringify(PIXEL_RULES_CLIENT)};
+    let pixelsPageCache = [];
+
+    function pixelTypeLabel(type) {
+      return (PIXEL_RULES[type] && PIXEL_RULES[type].label) || type;
+    }
+
+    function normalizePixelIdClient(type, value) {
+      const rule = PIXEL_RULES[type];
+      const v = (value || '').trim();
+      if (!rule) return v;
+      if (rule.normalize === 'upper') return v.toUpperCase();
+      if (rule.normalize === 'lower') return v.toLowerCase();
+      return v;
+    }
+
+    function isValidPixelIdClient(type, value) {
+      const rule = PIXEL_RULES[type];
+      return !!rule && new RegExp(rule.pattern).test(normalizePixelIdClient(type, value));
+    }
+
+    async function loadPixelsPage() {
+      const domainId = document.getElementById('domain-selector')?.value || '';
+      const list = document.getElementById('pixels-list');
+      const addBtn = document.getElementById('add-pixel-btn');
+      if (!list) return;
+      if (!domainId) {
+        if (addBtn) addBtn.style.display = 'none';
+        list.innerHTML = '<p style="color: var(--secondary-color);">Select a domain to manage its pixels.</p>';
+        return;
+      }
+      if (addBtn) addBtn.style.display = '';
+      list.innerHTML = '<p>Loading…</p>';
+      try {
+        const res = await apiRequest('/pixels?domain_id=' + encodeURIComponent(domainId));
+        pixelsPageCache = res.data || [];
+        renderPixelsTable();
+      } catch (error) {
+        list.innerHTML = '<p style="color: #dc3545;">Failed to load pixels: ' + escapeHtml(error.message) + '</p>';
+      }
+    }
+
+    function renderPixelsTable() {
+      const list = document.getElementById('pixels-list');
+      if (!list) return;
+      if (pixelsPageCache.length === 0) {
+        list.innerHTML = '<p style="color: var(--secondary-color);">No pixels saved for this domain yet. Click "+ Add pixel" to save one.</p>';
+        return;
+      }
+      let html = '<table style="width: 100%; border-collapse: collapse;"><thead><tr style="text-align: left;"><th>Name</th><th>Platform</th><th>ID</th><th>Default</th><th>Used by</th><th>Actions</th></tr></thead><tbody>';
+      pixelsPageCache.forEach(p => {
+        const id = escapeHtml(p.id);
+        html += '<tr style="border-top: 1px solid var(--border-color);">' +
+          '<td>' + escapeHtml(p.name) + '</td>' +
+          '<td>' + escapeHtml(pixelTypeLabel(p.pixel_type)) + '</td>' +
+          '<td><code>' + escapeHtml(p.pixel_id) + '</code></td>' +
+          '<td>' + (p.is_default ? '★ Default' : '') + '</td>' +
+          '<td>' + p.link_count + ' link' + (p.link_count === 1 ? '' : 's') + '</td>' +
+          '<td style="white-space: nowrap;">' +
+            '<button type="button" class="btn btn-secondary pixel-action" data-action="edit" data-id="' + id + '">Edit</button> ' +
+            '<button type="button" class="btn btn-secondary pixel-action" data-action="attach-all" data-id="' + id + '">Attach to all links</button> ' +
+            '<button type="button" class="btn btn-secondary pixel-action" data-action="detach-all" data-id="' + id + '">Remove from all links</button> ' +
+            '<button type="button" class="btn btn-danger pixel-action" data-action="delete" data-id="' + id + '">Delete</button>' +
+          '</td></tr>';
+      });
+      html += '</tbody></table>';
+      list.innerHTML = html;
+    }
+
+    function populatePixelTypeSelect() {
+      const select = document.getElementById('pixel-form-type');
+      if (!select || select.options.length > 0) return;
+      Object.keys(PIXEL_RULES).forEach(type => {
+        const opt = document.createElement('option');
+        opt.value = type;
+        opt.textContent = PIXEL_RULES[type].label;
+        select.appendChild(opt);
+      });
+    }
+
+    function validatePixelForm() {
+      const type = document.getElementById('pixel-form-type').value;
+      const value = document.getElementById('pixel-form-pixel-id').value;
+      const err = document.getElementById('pixel-form-error');
+      const ok = !value.trim() || isValidPixelIdClient(type, value);
+      err.style.display = ok ? 'none' : 'block';
+      err.textContent = ok ? '' : 'This does not look like a ' + pixelTypeLabel(type) + ' ID (e.g. ' + PIXEL_RULES[type].placeholder + ').';
+      return ok && !!value.trim();
+    }
+
+    function updatePixelFormHint() {
+      const type = document.getElementById('pixel-form-type').value;
+      const rule = PIXEL_RULES[type];
+      document.getElementById('pixel-form-pixel-id').placeholder = rule ? 'e.g. ' + rule.placeholder : '';
+      document.getElementById('pixel-form-hint').textContent = rule ? 'Where to find it: ' + rule.hint : '';
+      validatePixelForm();
+    }
+
+    function openPixelModal(pixel) {
+      populatePixelTypeSelect();
+      document.getElementById('pixel-modal-title').textContent = pixel ? 'Edit pixel' : 'Add pixel';
+      document.getElementById('pixel-form-id').value = pixel ? pixel.id : '';
+      document.getElementById('pixel-form-name').value = pixel ? pixel.name : '';
+      document.getElementById('pixel-form-type').value = pixel ? pixel.pixel_type : 'facebook';
+      document.getElementById('pixel-form-pixel-id').value = pixel ? pixel.pixel_id : '';
+      document.getElementById('pixel-form-default').checked = pixel ? !!pixel.is_default : false;
+      updatePixelFormHint();
+      document.getElementById('pixel-modal').classList.add('active');
+    }
+
+    function closePixelModal() {
+      document.getElementById('pixel-modal').classList.remove('active');
+    }
+
+    document.getElementById('add-pixel-btn')?.addEventListener('click', () => openPixelModal(null));
+    document.getElementById('close-pixel-modal')?.addEventListener('click', closePixelModal);
+    document.getElementById('pixel-form-type')?.addEventListener('change', updatePixelFormHint);
+    document.getElementById('pixel-form-pixel-id')?.addEventListener('input', validatePixelForm);
+
+    function warnStalePixels(res) {
+      const n = res && res.data ? res.data.stale_links : 0;
+      if (n > 0) {
+        showToast(n + ' link(s) may keep the previous pixels for up to 7 days (cache refresh limit reached).', 'warning');
+      }
+    }
+
+    document.getElementById('pixel-form')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!validatePixelForm()) return;
+      const id = document.getElementById('pixel-form-id').value;
+      const type = document.getElementById('pixel-form-type').value;
+      const body = {
+        name: document.getElementById('pixel-form-name').value.trim(),
+        pixel_type: type,
+        pixel_id: normalizePixelIdClient(type, document.getElementById('pixel-form-pixel-id').value),
+        is_default: document.getElementById('pixel-form-default').checked,
+      };
+      let saveRes = null;
+      try {
+        if (id) {
+          saveRes = await apiRequest('/pixels/' + encodeURIComponent(id), { method: 'PUT', body: JSON.stringify(body) });
+        } else {
+          body.domain_id = document.getElementById('domain-selector')?.value || '';
+          await apiRequest('/pixels', { method: 'POST', body: JSON.stringify(body) });
+        }
+        closePixelModal();
+        showToast('Pixel saved', 'success');
+        warnStalePixels(saveRes);
+        await loadPixelsPage();
+      } catch (error) {
+        showToast('Failed to save pixel: ' + error.message, 'error');
+      }
+    });
+
+    document.addEventListener('click', async (e) => {
+      const btn = e.target && e.target.closest ? e.target.closest('.pixel-action') : null;
+      if (!btn) return;
+      const pixel = pixelsPageCache.find(p => p.id === btn.dataset.id);
+      if (!pixel) return;
+      const base = '/pixels/' + encodeURIComponent(pixel.id);
+      try {
+        if (btn.dataset.action === 'edit') {
+          openPixelModal(pixel);
+        } else if (btn.dataset.action === 'delete') {
+          if (!confirm('Delete "' + pixel.name + '"? It is used by ' + pixel.link_count + ' link(s), which will stop firing it.')) return;
+          const res = await apiRequest(base, { method: 'DELETE' });
+          showToast('Pixel deleted (' + res.data.affected_links + ' link(s) updated)', 'success');
+          warnStalePixels(res);
+          await loadPixelsPage();
+        } else if (btn.dataset.action === 'attach-all') {
+          if (!confirm('Attach "' + pixel.name + '" to every link in this domain that does not have it yet? Links that already have 5 pixels are skipped.')) return;
+          const res = await apiRequest(base + '/attach-all', { method: 'POST' });
+          showToast('Attached to ' + res.data.attached + ' link(s)' + (res.data.skipped_full ? ', skipped ' + res.data.skipped_full + ' full' : ''), 'success');
+          warnStalePixels(res);
+          await loadPixelsPage();
+        } else if (btn.dataset.action === 'detach-all') {
+          if (!confirm('Remove "' + pixel.name + '" from all ' + pixel.link_count + ' link(s)?')) return;
+          const res = await apiRequest(base + '/detach-all', { method: 'POST' });
+          showToast('Removed from ' + res.data.detached + ' link(s)', 'success');
+          warnStalePixels(res);
+          await loadPixelsPage();
+        }
+      } catch (error) {
+        showToast('Pixel action failed: ' + error.message, 'error');
+      }
+    });
+
     // Fetch Open Graph tags from the destination URL (fills blank fields only)
     document.getElementById('og-fetch-btn')?.addEventListener('click', async () => {
       const url = document.getElementById('link-url')?.value?.trim();
@@ -3233,6 +3500,68 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       document.getElementById('og-type').value = meta?.og_type || 'website';
       document.getElementById('og-twitter-card').value = meta?.twitter_card || 'summary_large_image';
     }
+
+    let linkPixelPickerLoaded = false;
+
+    async function loadLinkPixelPicker(domainId, selectedIds, applyDefaults) {
+      const picker = document.getElementById('link-pixel-picker');
+      if (!picker) return;
+      linkPixelPickerLoaded = false;
+      if (!domainId) {
+        picker.innerHTML = '<span style="color: var(--secondary-color);">Choose a domain to see its pixels.</span>';
+        updateLinkPixelCount();
+        return;
+      }
+      picker.innerHTML = '<span style="color: var(--secondary-color);">Loading pixels…</span>';
+      try {
+        const res = await apiRequest('/pixels?domain_id=' + encodeURIComponent(domainId));
+        const pixels = res.data || [];
+        picker.innerHTML = '';
+        if (pixels.length === 0) {
+          picker.innerHTML = '<span style="color: var(--secondary-color);">No pixels saved for this domain yet. <a href="#pixels" target="_blank" rel="noopener">Add one</a></span>';
+        }
+        pixels.forEach(p => {
+          const label = document.createElement('label');
+          label.className = 'checkbox-label';
+          label.style.cssText = 'margin: 0.25rem 0;';
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.className = 'link-pixel-cb';
+          cb.value = p.id;
+          cb.checked = selectedIds ? selectedIds.includes(p.id) : (applyDefaults && !!p.is_default);
+          const text = document.createElement('span');
+          text.textContent = p.name + ' (' + pixelTypeLabel(p.pixel_type) + ')';
+          label.appendChild(cb);
+          label.appendChild(text);
+          picker.appendChild(label);
+        });
+        linkPixelPickerLoaded = true;
+      } catch (error) {
+        picker.innerHTML = '<span style="color: #dc3545;">Failed to load pixels: ' + escapeHtml(error.message) + '</span>';
+      }
+      updateLinkPixelCount();
+    }
+
+    function getSelectedPixelIds() {
+      return Array.from(document.querySelectorAll('#link-pixel-picker .link-pixel-cb:checked')).map(cb => cb.value);
+    }
+
+    function updateLinkPixelCount() {
+      const boxes = Array.from(document.querySelectorAll('#link-pixel-picker .link-pixel-cb'));
+      const checked = boxes.filter(cb => cb.checked).length;
+      boxes.forEach(cb => { cb.disabled = !cb.checked && checked >= 5; });
+      const el = document.getElementById('link-pixel-count');
+      if (el) el.textContent = boxes.length ? checked + ' / 5 selected' : '';
+    }
+
+    document.addEventListener('change', (e) => {
+      if (e.target && e.target.classList && e.target.classList.contains('link-pixel-cb')) updateLinkPixelCount();
+    });
+
+    document.getElementById('link-domain')?.addEventListener('change', (e) => {
+      // Only editable while creating (locked on edit): reload that domain's library with defaults pre-ticked.
+      if (!e.target.disabled) loadLinkPixelPicker(e.target.value, null, true);
+    });
 
     async function loadTags() {
       try {
@@ -3840,7 +4169,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           '</div>' +
             '<div style="display: flex; gap: 0.5rem;">' +
               '<button class="btn btn-sm btn-primary" data-action="edit-tag" data-tag-id="' + tagIdEscaped + '">Edit</button>' +
-              '<button class="btn btn-sm btn-secondary" data-action="delete-tag" data-tag-id="' + tagIdEscaped + '">Delete</button>' +
+              '<button class="btn btn-sm btn-danger" data-action="delete-tag" data-tag-id="' + tagIdEscaped + '">Delete</button>' +
             '</div>' +
           '</div>';
         }
@@ -3997,7 +4326,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           '</div>' +
             '<div style="display: flex; gap: 0.5rem;">' +
               '<button class="btn btn-sm btn-primary" data-action="edit-category" data-category-id="' + catIdEscaped + '">Edit</button>' +
-              '<button class="btn btn-sm btn-secondary" data-action="delete-category" data-category-id="' + catIdEscaped + '">Delete</button>' +
+              '<button class="btn btn-sm btn-danger" data-action="delete-category" data-category-id="' + catIdEscaped + '">Delete</button>' +
             '</div>' +
           '</div>';
         }
@@ -4536,10 +4865,11 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           }
         });
         
-        selector.addEventListener('change', () => {
+        // Assigned (not added) so re-running this after a domain create/toggle
+        // doesn't stack another handler and reload the links several times.
+        selector.onchange = () => {
           loadLinks();
-          // loadDashboard(); // DEPRECATED - summary stats removed
-        });
+        };
       } catch (error) {
         console.error('Failed to load domains:', error);
       }
@@ -7292,7 +7622,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             if (canResetMfa) {
               html += '<button class="btn btn-sm btn-secondary" data-action="reset-user-mfa" data-user-id="' + userIdEscaped + '" style="margin-right: 0.5rem;">Reset MFA</button>';
             }
-            html += '<button class="btn btn-sm btn-secondary" data-action="delete-user" data-user-id="' + userIdEscaped + '">Delete</button>';
+            html += '<button class="btn btn-sm btn-danger" data-action="delete-user" data-user-id="' + userIdEscaped + '">Delete</button>';
             html += '</td>';
             html += '</tr>';
           });
@@ -8085,8 +8415,8 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             '<td>' + escapeHtml(lastUsed) + '</td>' +
             '<td><span class="status-badge ' + statusClass + '">' + escapeHtml(key.status || '') + '</span></td>' +
             '<td>' +
-              '<button class="btn btn-sm btn-secondary" data-action="revoke" data-key-id="' + escapeHtml(key.id) + '">Revoke</button>' +
-              '<button class="btn btn-sm btn-secondary" data-action="delete" data-key-id="' + escapeHtml(key.id) + '" style="margin-left: 0.5rem;">Delete</button>' +
+              '<button class="btn btn-sm btn-danger" data-action="revoke" data-key-id="' + escapeHtml(key.id) + '">Revoke</button>' +
+              '<button class="btn btn-sm btn-danger" data-action="delete" data-key-id="' + escapeHtml(key.id) + '" style="margin-left: 0.5rem;">Delete</button>' +
             '</td>' +
           '</tr>';
         }).join('');
@@ -8635,30 +8965,30 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         name: 'Bulk Operations',
         method: 'POST',
         path: '/links/bulk',
-        description: 'Perform bulk operations (update or delete) on multiple links.',
+        description: 'Perform bulk operations (update or delete) on multiple links, at most 100 entries per request (both formats). Two request formats are supported. Legacy format: link_ids plus a shared updates object. Items format: an items array where each item targets a link by id, or by domain_id and slug, and (for update) carries its own updates. An unknown action or an empty updates object returns 400. Destination URLs are normalized and checked for redirect loops.',
         pathParams: [],
         queryParams: [],
         bodyParams: {
           action: { type: 'string', required: true, description: 'Action to perform: "update" or "delete"' },
-          link_ids: { type: 'array', required: true, description: 'Array of link IDs to operate on' },
-          updates: { type: 'object', required: false, description: 'Update fields (only for "update" action). Can include: destination_url, title, description, status, tags, category_id, geo_redirects, device_redirects, etc.' }
+          link_ids: { type: 'array', required: false, description: 'Legacy format: array of link IDs (max 100). Use either link_ids or items, not both.' },
+          updates: { type: 'object', required: false, description: 'Legacy format, "update" action only: fields applied to every link in link_ids (for example destination_url, title, status, tags, category_id, pixel_ids). Must not be empty.' },
+          items: { type: 'array', required: false, description: 'Items format (max 100). Each item targets one link with either id, or domain_id plus slug, and for "update" carries its own non-empty updates object. For "delete" the updates field is not needed. Deleting by slug is supported.' }
         },
         fileUpload: false,
         exampleRequest: {
           body: {
             action: 'update',
-            link_ids: ['link_xxx1', 'link_xxx2'],
-            updates: {
-              status: 'archived',
-              tags: ['tag_xxx']
-            }
+            items: [
+              { id: 'link_xxx1', updates: { status: 'archived' } },
+              { domain_id: 'dom_xxx', slug: 'promo', updates: { destination_url: 'https://example.com/new' } }
+            ]
           }
         },
         exampleResponse: {
           success: true,
           data: [
-            { id: 'link_xxx1', success: true },
-            { id: 'link_xxx2', success: true }
+            { index: 0, id: 'link_xxx1', slug: 'old-slug', success: true },
+            { index: 1, slug: 'promo', success: false, error: 'Link not found' }
           ]
         }
       },
@@ -8667,28 +8997,33 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         name: 'Import Links (CSV/TSV)',
         method: 'POST',
         path: '/links/import',
-        description: 'Import links from a CSV or TSV file.',
+        description: 'Import links from a CSV or TSV file. Requires access to the target domain (403 otherwise; API keys must include the domain in their scope). The on_existing option controls what happens when a slug already exists: skip (default — the row is left untouched and counted as skipped, with success true), error (the pre-0.11 behaviour), or update. Summary counts: created, updated, skipped, errors; success = created + updated + skipped. In update mode, blank cells leave the existing value unchanged. Default pixels of the domain are applied to newly created links only. A slug that belongs to a deleted link returns an error row until it is restored or hard-deleted.',
         pathParams: [],
         queryParams: [],
         bodyParams: {
           file: { type: 'file', required: true, description: 'CSV/TSV file (max 5MB)' },
           domain_id: { type: 'string', required: true, description: 'Domain ID' },
-          delimiter: { type: 'string', required: false, description: 'Field delimiter (auto-detect if not provided, default: ",")' },
+          delimiter: { type: 'string', required: false, description: 'Field delimiter (default: ",")' },
           column_mapping: { type: 'object', required: true, description: 'Column mapping JSON object (maps CSV columns to link fields)' },
-          slug_prefix_filter: { type: 'object', required: false, description: 'Slug prefix filter JSON object' }
+          on_existing: { type: 'string', required: false, description: 'What to do when the slug already exists: "skip" (default; existing link untouched, row counted as skipped), "error" (row fails with Slug already exists — send this to keep pre-0.11 behaviour) or "update". Any other value returns 400.' }
         },
         fileUpload: true,
         exampleRequest: {
-          body: 'multipart/form-data with file'
+          body: 'multipart/form-data with file, domain_id, column_mapping and optional on_existing'
         },
         exampleResponse: {
           success: true,
           data: {
-            success: 10,
-            errors: 0,
+            success: 3,
+            created: 1,
+            updated: 1,
+            skipped: 1,
+            errors: 1,
             results: [
-              { row: 1, success: true, slug: 'example1' },
-              { row: 2, success: true, slug: 'example2' }
+              { row: 0, success: true, action: 'created', slug: 'example1' },
+              { row: 1, success: true, action: 'updated', slug: 'example2' },
+              { row: 2, success: true, action: 'skipped', slug: 'example3' },
+              { row: 3, success: false, action: 'error', slug: 'example4', error: 'Slug belongs to a deleted link — restore or hard-delete it first' }
             ]
           }
         }
@@ -12348,6 +12683,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         domainSelector.addEventListener('change', () => {
           loadTags();
           loadCategories();
+          if ((window.location.hash || '') === '#pixels') loadPixelsPage();
         });
       }
       
@@ -13004,6 +13340,14 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
     }
     
     // Extract slug from value using prefix filter
+    // Same slug extraction as the preview, so the import saves what the preview shows.
+    function prepareImportCell(header, cell) {
+      if (columnMapping[header] === 'slug' && slugPrefixFilter[header]) {
+        return extractSlugFromValue(cell, slugPrefixFilter[header]);
+      }
+      return cell;
+    }
+
     function extractSlugFromValue(value, prefix) {
       if (!value || !prefix) return value;
       
@@ -13245,7 +13589,9 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           const totalRows = csvData.rows.length;
           const totalChunks = Math.ceil(totalRows / CHUNK_SIZE);
           
-          let successCount = 0;
+          let createdCount = 0;
+          let updatedCount = 0;
+          let skippedCount = 0;
           let errorCount = 0;
           let processedRows = 0;
           const allResults = [];
@@ -13263,7 +13609,8 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             const headerLine = csvData.headers.join(delimiter);
             const chunkLines = chunkRows.map(row => {
               // Simple CSV escaping if needed (basic implementation)
-              return row.map(cell => {
+              return row.map((rawCell, cellIndex) => {
+                const cell = prepareImportCell(csvData.headers[cellIndex], rawCell);
                 const q = String.fromCharCode(34);
                 const newline = String.fromCharCode(10);
                 if (cell.includes(delimiter) || cell.includes(q) || cell.includes(newline)) {
@@ -13284,7 +13631,7 @@ const formData = new FormData();
 formData.append('file', chunkFile);
 formData.append('domain_id', domainId);
 formData.append('column_mapping', JSON.stringify(columnMapping));
-formData.append('slug_prefix_filter', JSON.stringify(slugPrefixFilter));
+formData.append('on_existing', document.getElementById('import-on-existing').value);
 formData.append('delimiter', delimiter);
 
 try {
@@ -13304,10 +13651,15 @@ try {
   }
 
   const result = await response.json();
-  successCount += result.data.success || 0;
+  createdCount += result.data.created || 0;
+  updatedCount += result.data.updated || 0;
+  skippedCount += result.data.skipped || 0;
   errorCount += result.data.errors || 0;
   if (result.data.results) {
-    allResults.push(...result.data.results);
+    allResults.push(...result.data.results.map(item => ({
+      ...item,
+      rowNum: item.row == null ? null : chunkIndex * CHUNK_SIZE + item.row + 1,
+    })));
   }
 
 } catch (error) {
@@ -13328,12 +13680,13 @@ progressBar.style.width = '100%';
 progressPercent.textContent = '100%';
 
 const total = totalRows;
+const successCount = createdCount + updatedCount;
 
 // Update progress text based on results
 if (errorCount === 0) {
-  progressText.textContent = 'Import completed successfully! ' + successCount + ' link(s) imported.';
+  progressText.textContent = 'Import completed successfully! ' + createdCount + ' created, ' + updatedCount + ' updated, ' + skippedCount + ' skipped.';
   progressBar.classList.add('success');
-} else if (successCount === 0) {
+} else if (successCount === 0 && skippedCount === 0) {
   progressText.textContent = 'Import failed. All ' + errorCount + ' row(s) had errors.';
   progressBar.classList.add('error');
 } else {
@@ -13343,13 +13696,17 @@ if (errorCount === 0) {
 
 // Show summary
 const importSummary = document.getElementById('import-summary');
-const successCountEl = document.getElementById('success-count');
+const createdCountEl = document.getElementById('created-count');
+const updatedCountEl = document.getElementById('updated-count');
+const skippedCountEl = document.getElementById('skipped-count');
 const errorCountEl = document.getElementById('error-count');
 const errorDetailsSection = document.getElementById('error-details-section');
 const errorList = document.getElementById('error-list');
 
 importSummary.style.display = 'block';
-successCountEl.textContent = successCount;
+createdCountEl.textContent = createdCount;
+updatedCountEl.textContent = updatedCount;
+skippedCountEl.textContent = skippedCount;
 errorCountEl.textContent = errorCount;
 
 // Show error details if there are errors
@@ -13357,10 +13714,10 @@ if (errorCount > 0) {
   errorDetailsSection.style.display = 'block';
   
   // Populate error list
-  const errorItems = allResults.filter(r => !r.success);
+  const errorItems = allResults.filter(r => r.action === 'error' || (r.action === undefined && !r.success));
   let errorHtml = '';
   errorItems.forEach((item, index) => {
-    const rowNum = item.row || (item.chunk !== undefined ? 'Chunk ' + (item.chunk + 1) : 'Unknown');
+    const rowNum = item.rowNum ?? (item.chunk !== undefined ? 'Chunk ' + (item.chunk + 1) : 'Unknown');
     const errorMsg = item.error || 'Unknown error';
     errorHtml += '<div class="error-item">';
     errorHtml += '<div class="error-row">Row ' + rowNum + '</div>';
@@ -13394,7 +13751,7 @@ if (errorCount > 0) {
     const nl = String.fromCharCode(10);
     let csvContent = 'Row,Error' + nl;
     errorItems.forEach(item => {
-      const rowNum = item.row || (item.chunk !== undefined ? 'Chunk ' + (item.chunk + 1) : 'Unknown');
+      const rowNum = item.rowNum ?? (item.chunk !== undefined ? 'Chunk ' + (item.chunk + 1) : 'Unknown');
       const errorMsg = (item.error || 'Unknown error').replace(/"/g, '""'); // Escape quotes
       csvContent += '"' + rowNum + '","' + errorMsg + '"' + nl;
     });
@@ -13433,7 +13790,7 @@ document.getElementById('progress-ok-btn').onclick = () => {
 
   // Show toast
   if (successCount > 0) {
-    showToast('Successfully imported ' + successCount + ' link(s)', 'success');
+    showToast('Import done: ' + createdCount + ' created, ' + updatedCount + ' updated, ' + skippedCount + ' skipped', 'success');
   }
 };
         } catch (error) {

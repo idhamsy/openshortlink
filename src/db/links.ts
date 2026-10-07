@@ -52,97 +52,90 @@ export async function getLinkByIdIncludingDeleted(env: Env, linkId: string): Pro
   return result || null;
 }
 
-export async function createLink(env: Env, link: Omit<Link, 'id' | 'created_at' | 'updated_at'>): Promise<Link> {
+/** Slug lookup that also matches soft-deleted links (for import/bulk conflict handling). */
+export async function getLinkBySlugIncludingDeleted(
+  env: Env,
+  domainId: string,
+  slug: string
+): Promise<Link | null> {
+  const result = await env.DB.prepare(`SELECT * FROM links WHERE domain_id = ? AND slug = ?`)
+    .bind(domainId, slug)
+    .first<Link>();
+  return result || null;
+}
+
+/**
+ * Builds (does not execute) the INSERT for a new link. Returns the statement plus the row
+ * it will persist (id/timestamps generated here), so callers can batch it atomically.
+ */
+export function buildLinkInsertStatement(
+  env: Env,
+  link: Omit<Link, 'id' | 'created_at' | 'updated_at'>
+): { statement: D1PreparedStatement; row: Link } {
   const id = generateId('link');
   const now = Date.now();
+  const statement = env.DB.prepare(
+    `INSERT INTO links (
+      id, domain_id, slug, destination_url, title, description, redirect_code,
+      status, expires_at, password_hash, metadata, category_id, click_count, unique_visitors,
+      created_at, updated_at, created_by
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(
+    id,
+    link.domain_id,
+    link.slug,
+    link.destination_url,
+    link.title || null,
+    link.description || null,
+    link.redirect_code,
+    link.status,
+    link.expires_at || null,
+    link.password_hash || null,
+    link.metadata || null,
+    link.category_id || null,
+    link.click_count || 0,
+    link.unique_visitors || 0,
+    now,
+    now,
+    link.created_by || null
+  );
+  const row = {
+    ...link,
+    id,
+    title: link.title || null,
+    description: link.description || null,
+    expires_at: link.expires_at || null,
+    password_hash: link.password_hash || null,
+    metadata: link.metadata || null,
+    category_id: link.category_id || null,
+    click_count: link.click_count || 0,
+    unique_visitors: link.unique_visitors || 0,
+    created_by: link.created_by || null,
+    created_at: now,
+    updated_at: now,
+  } as unknown as Link;
+  return { statement, row };
+}
 
-  // Try using RETURNING clause (SQLite 3.35.0+ / D1 supports it)
+export async function createLink(env: Env, link: Omit<Link, 'id' | 'created_at' | 'updated_at'>): Promise<Link> {
+  const { statement, row } = buildLinkInsertStatement(env, link);
   try {
-    const result = await env.DB.prepare(
-      `INSERT INTO links (
-        id, domain_id, slug, destination_url, title, description, redirect_code,
-        status, expires_at, password_hash, metadata, category_id, click_count, unique_visitors,
-        created_at, updated_at, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      RETURNING *`
-    )
-      .bind(
-        id,
-        link.domain_id,
-        link.slug,
-        link.destination_url,
-        link.title || null,
-        link.description || null,
-        link.redirect_code,
-        link.status,
-        link.expires_at || null,
-        link.password_hash || null,
-        link.metadata || null,
-        link.category_id || null, // Use category_id column
-        link.click_count || 0,
-        link.unique_visitors || 0,
-        now,
-        now,
-        link.created_by || null
-      )
-      .first<Link>();
-
-    if (result) {
-      return result;
-    }
-  } catch (err) {
-    // A UNIQUE(domain_id, slug) race is a real conflict, not a "RETURNING
-    // unsupported" fallback signal — surface it as a typed 409 error.
-    if (isUniqueConstraintError(err)) {
-      throw new SlugConflictError();
-    }
-    // RETURNING not supported, fall back to SELECT
-  }
-
-  // Fallback: Use SELECT (only if RETURNING not available)
-  try {
-    await env.DB.prepare(
-      `INSERT INTO links (
-        id, domain_id, slug, destination_url, title, description, redirect_code,
-        status, expires_at, password_hash, metadata, category_id, click_count, unique_visitors,
-        created_at, updated_at, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-      .bind(
-        id,
-        link.domain_id,
-        link.slug,
-        link.destination_url,
-        link.title || null,
-        link.description || null,
-        link.redirect_code,
-        link.status,
-        link.expires_at || null,
-        link.password_hash || null,
-        link.metadata || null,
-        link.category_id || null, // Use category_id column
-        link.click_count || 0,
-        link.unique_visitors || 0,
-        now,
-        now,
-        link.created_by || null
-      )
-      .run();
+    await statement.run();
   } catch (err) {
     if (isUniqueConstraintError(err)) {
       throw new SlugConflictError();
     }
     throw err;
   }
-
-  return getLinkById(env, id) as Promise<Link>;
+  return (await getLinkById(env, row.id)) as Link;
 }
 
-export async function updateLink(
+/** Builds (does not execute) a partial UPDATE for a link; same field handling as updateLink. */
+export function buildLinkUpdateStatement(
   env: Env,
   linkId: string,
   updates: Partial<Omit<Link, 'id' | 'created_at' | 'domain_id' | 'slug'>>
-): Promise<Link | null> {
+): D1PreparedStatement {
   const fields: string[] = [];
   const values: unknown[] = [];
 
@@ -175,7 +168,6 @@ export async function updateLink(
     values.push(updates.metadata);
   }
   if (updates.category_id !== undefined) {
-    // Update category_id column
     fields.push('category_id = ?');
     values.push(updates.category_id);
   }
@@ -184,8 +176,15 @@ export async function updateLink(
   values.push(Date.now());
   values.push(linkId);
 
-  await env.DB.prepare(`UPDATE links SET ${fields.join(', ')} WHERE id = ?`).bind(...values).run();
+  return env.DB.prepare(`UPDATE links SET ${fields.join(', ')} WHERE id = ?`).bind(...values);
+}
 
+export async function updateLink(
+  env: Env,
+  linkId: string,
+  updates: Partial<Omit<Link, 'id' | 'created_at' | 'domain_id' | 'slug'>>
+): Promise<Link | null> {
+  await buildLinkUpdateStatement(env, linkId, updates).run();
   return getLinkById(env, linkId);
 }
 

@@ -109,6 +109,8 @@ export const componentsCss = `/* Cards */
 .btn-primary:hover { background: #4f46e5; transform: translateY(-1px); box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
 .btn-secondary { background: var(--secondary-color); color: white; box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); }
 .btn-secondary:hover { background: #475569; transform: translateY(-1px); box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+.btn-danger { background: #dc3545; color: white; box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); }
+.btn-danger:hover { background: #bb2d3b; transform: translateY(-1px); box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
 .btn-sm { padding: 0.375rem 0.75rem; font-size: 0.75rem; min-height: auto; }
 
 /* Filters & Inputs */
@@ -160,6 +162,7 @@ export const componentsCss = `/* Cards */
 .form-group textarea { resize: vertical; min-height: 100px; }
 .checkbox-label { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; color: var(--text-color); }
 .checkbox-label input[type="checkbox"] { width: auto; cursor: pointer; }
+.form-group label.checkbox-label { display: flex; }
 
 /* Badges */
 .status-badge { padding: 0.25rem 0.625rem; border-radius: 6px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
@@ -225,8 +228,9 @@ export const componentsCss = `/* Cards */
 .progress-text { text-align: center; color: var(--text-color); margin: 1rem 0; font-size: 0.95rem; }
 .import-summary { margin-top: 1.5rem; padding: 1rem; background: var(--card-bg); border-radius: 8px; border: 1px solid var(--border-color); }
 .summary-stats { display: flex; gap: 1.5rem; justify-content: center; margin-bottom: 1rem; flex-wrap: wrap; }
-.stat-success, .stat-error { padding: 0.75rem 1.5rem; border-radius: 6px; font-weight: 600; font-size: 1rem; }
+.stat-success, .stat-skipped, .stat-error { padding: 0.75rem 1.5rem; border-radius: 6px; font-weight: 600; font-size: 1rem; }
 .stat-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+.stat-skipped { background: #e2e3e5; color: #383d41; border: 1px solid #d6d8db; }
 .stat-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
 .error-details { margin-top: 1rem; }
 .error-details h3 { font-size: 1rem; margin-bottom: 0.75rem; color: var(--text-color); cursor: pointer; display: flex; align-items: center; gap: 0.5rem; }
