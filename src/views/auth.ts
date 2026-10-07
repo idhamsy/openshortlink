@@ -58,7 +58,7 @@ export const loginHtml = (csrfToken: string, nonce: string) => html`<!DOCTYPE ht
           <input type="text" id="backup-code" maxlength="8" pattern="[0-9]{8}" placeholder="00000000">
         </div>
       </div>
-      <div id="error-message" class="error" style="display: none;"></div>
+      <div id="error-message" class="error" role="alert" aria-live="assertive" style="display: none;"></div>
       <button type="submit" class="btn" id="login-btn">Login</button>
     </form>
     <div class="register-link">
@@ -278,7 +278,7 @@ export const setupHtml = (csrfToken: string, nonce: string) => html`<!DOCTYPE ht
         <input type="password" id="password" required autocomplete="new-password" minlength="12">
         <small>Minimum 12 characters with uppercase, lowercase, number, and special character</small>
       </div>
-      <div id="error-message" class="error" style="display: none;"></div>
+      <div id="error-message" class="error" role="alert" aria-live="assertive" style="display: none;"></div>
       <button type="submit" class="btn">Create Owner Account</button>
     </form>
     <div style="text-align: center; margin-top: 1rem;">

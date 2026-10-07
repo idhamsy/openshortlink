@@ -552,9 +552,9 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         
         <!-- API Key Selection Modal -->
         <div id="api-key-selection-modal" class="modal">
-          <div class="modal-content" style="max-width: 800px;">
-            <span class="close" id="close-api-key-modal">&times;</span>
-            <h2>Select API Key</h2>
+          <div class="modal-content" style="max-width: 800px;" role="dialog" aria-modal="true" aria-labelledby="api-key-selection-modal-title">
+            <button type="button" class="close" id="close-api-key-modal" aria-label="Close" style="background:none;border:none;padding:0;">&times;</button>
+            <h2 id="api-key-selection-modal-title">Select API Key</h2>
             <div style="margin-bottom: 1rem;">
               <input type="text" id="api-key-search" placeholder="Search API keys..." style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;">
             </div>
@@ -816,9 +816,9 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
     </div>
   </div>
   <div id="create-link-modal" class="modal">
-    <div class="modal-content">
-      <span class="close">&times;</span>
-      <h2>Create Link</h2>
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="create-link-modal-title">
+      <button type="button" class="close" aria-label="Close" style="background:none;border:none;padding:0;">&times;</button>
+      <h2 id="create-link-modal-title">Create Link</h2>
       <form id="create-link-form">
         <div class="form-group">
           <label for="link-domain">Domain</label>
@@ -1034,8 +1034,8 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
   </div>
 
   <div id="api-key-modal" class="modal">
-    <div class="modal-content" style="max-width: 600px;">
-      <span class="close">&times;</span>
+    <div class="modal-content" style="max-width: 600px;" role="dialog" aria-modal="true" aria-labelledby="api-key-modal-title">
+      <button type="button" class="close" aria-label="Close" style="background:none;border:none;padding:0;">&times;</button>
       <h2 id="api-key-modal-title">Create API Key</h2>
       <form id="api-key-form">
         <div class="form-group">
@@ -1083,9 +1083,9 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
     </div>
   </div>
   <div id="import-csv-modal" class="modal">
-    <div class="modal-content" style="max-width: 800px;">
-      <span class="close">&times;</span>
-      <h2>Import Links from CSV</h2>
+    <div class="modal-content" style="max-width: 800px;" role="dialog" aria-modal="true" aria-labelledby="import-csv-modal-title">
+      <button type="button" class="close" aria-label="Close" style="background:none;border:none;padding:0;">&times;</button>
+      <h2 id="import-csv-modal-title">Import Links from CSV</h2>
       <div id="import-csv-form">
         <div class="form-group">
           <label for="csv-file">CSV/TSV File</label>
@@ -1134,8 +1134,8 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
 
   <!-- Import Progress Modal -->
   <div id="import-progress-modal" class="modal">
-    <div class="modal-content" style="max-width: 600px;">
-      <h2>Import Progress</h2>
+    <div class="modal-content" style="max-width: 600px;" role="dialog" aria-modal="true" aria-labelledby="import-progress-modal-title">
+      <h2 id="import-progress-modal-title">Import Progress</h2>
       <div class="progress-container">
         <div id="progress-bar" class="progress-bar" style="width: 0%;"></div>
         <span id="progress-percent" class="progress-percent">0%</span>
@@ -1172,8 +1172,8 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
 
   <!-- Add Domain Modal -->
   <div id="add-domain-modal" class="modal">
-    <div class="modal-content">
-      <span class="close">&times;</span>
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="domain-modal-title">
+      <button type="button" class="close" aria-label="Close" style="background:none;border:none;padding:0;">&times;</button>
       <h2 id="domain-modal-title">Add Domain</h2>
       <form id="add-domain-form">
         <div class="form-group">
@@ -1743,25 +1743,14 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
     function showTableLoading(tableId, colspan = 7) {
       const tbody = document.getElementById(tableId);
       if (!tbody) return;
-      tbody.innerHTML = 
+      // Reuse the global .loading-spinner class + global @keyframes spin
+      // (defined in dashboard styles) instead of re-injecting a <style> block on
+      // every call. Inline sizing keeps the larger, centered table-loading look.
+      tbody.innerHTML =
         '<tr>' +
           '<td colspan="' + colspan + '" style="text-align: center; padding: 2rem;">' +
-            '<div style="' +
-              'border: 3px solid var(--border-color);' +
-              'border-top: 3px solid #3498db;' +
-              'border-radius: 50%;' +
-              'width: 40px;' +
-              'height: 40px;' +
-              'animation: spin 1s linear infinite;' +
-              'margin: 0 auto 1rem;' +
-            '"></div>' +
+            '<div class="loading-spinner" style="width: 40px; height: 40px; margin: 0 auto 1rem;"></div>' +
             '<div>Loading...</div>' +
-            '<style>' +
-              '@keyframes spin {' +
-                '0% { transform: rotate(0deg); }' +
-                '100% { transform: rotate(360deg); }' +
-              '}' +
-            '</style>' +
           '</td>' +
         '</tr>';
     }
@@ -1980,9 +1969,9 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         }
         container.innerHTML = domains.data?.map(domain => 
           '<div class="domain-card">' +
-            '<h3>' + domain.domain_name + '</h3>' +
-            '<p>Path: ' + domain.routing_path + '</p>' +
-            '<p>Status: ' + domain.status + '</p>' +
+            '<h3>' + escapeHtml(domain.domain_name) + '</h3>' +
+            '<p>Path: ' + escapeHtml(domain.routing_path) + '</p>' +
+            '<p>Status: ' + escapeHtml(domain.status) + '</p>' +
           '</div>'
         ).join('') || '';
       } catch (error) {
@@ -1990,6 +1979,108 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         document.getElementById('domains-list').innerHTML = '<p>Error loading domains. Check authentication.</p>';
       }
     }
+    // ========================================================================
+    // Modal accessibility controller (U5)
+    // Modals toggle visibility via the 'active' class (.modal.active). A single
+    // MutationObserver reacts to that class flipping (and to born-active modals
+    // being inserted/removed), so we get focus-move-on-open, focus-restore-on-
+    // close, Escape-to-close, and a Tab focus-trap for every modal — static or
+    // dynamically built — without touching the many open/close call sites.
+    // role="dialog"/aria-modal/aria-labelledby live in the markup; this also
+    // back-fills them for any modal that lacks them.
+    // ========================================================================
+    let __lastFocusBeforeModal = null;
+
+    function getModalFocusable(modal) {
+      const sel = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+      return Array.prototype.slice.call(modal.querySelectorAll(sel))
+        .filter(el => el.offsetWidth > 0 || el.offsetHeight > 0 || el === document.activeElement);
+    }
+
+    function ensureDialogSemantics(modal) {
+      const dialog = modal.querySelector('.modal-content') || modal;
+      if (!dialog.getAttribute('role')) dialog.setAttribute('role', 'dialog');
+      dialog.setAttribute('aria-modal', 'true');
+      if (!dialog.getAttribute('aria-label') && !dialog.getAttribute('aria-labelledby')) {
+        const heading = dialog.querySelector('h1, h2, h3');
+        if (heading) {
+          if (!heading.id) heading.id = (modal.id || 'modal') + '-title';
+          dialog.setAttribute('aria-labelledby', heading.id);
+        } else {
+          dialog.setAttribute('aria-label', 'Dialog');
+        }
+      }
+      return dialog;
+    }
+
+    function onModalActivated(modal) {
+      const dialog = ensureDialogSemantics(modal);
+      __lastFocusBeforeModal = document.activeElement;
+      const focusable = getModalFocusable(modal);
+      const target = focusable[0] || dialog;
+      if (target === dialog && !dialog.hasAttribute('tabindex')) dialog.setAttribute('tabindex', '-1');
+      setTimeout(() => { try { target.focus(); } catch (e) {} }, 0);
+    }
+
+    function onModalDeactivated() {
+      if (__lastFocusBeforeModal && typeof __lastFocusBeforeModal.focus === 'function') {
+        try { __lastFocusBeforeModal.focus(); } catch (e) {}
+      }
+      __lastFocusBeforeModal = null;
+    }
+
+    function initModalA11y() {
+      let currentModal = null;
+      const sync = () => {
+        const active = document.querySelector('.modal.active');
+        if (active === currentModal) return;
+        if (currentModal && currentModal !== active) onModalDeactivated();
+        currentModal = active;
+        if (active) onModalActivated(active);
+      };
+      const touchesModal = (m) => {
+        if (m.type === 'attributes') {
+          return m.target instanceof Element && m.target.classList && m.target.classList.contains('modal');
+        }
+        const scan = (list) => Array.prototype.some.call(list || [], (n) =>
+          n instanceof Element && ((n.classList && n.classList.contains('modal')) || (n.querySelector && n.querySelector('.modal'))));
+        return scan(m.addedNodes) || scan(m.removedNodes);
+      };
+      const observer = new MutationObserver((mutations) => {
+        if (mutations.some(touchesModal)) sync();
+      });
+      observer.observe(document.body, { attributes: true, attributeFilter: ['class'], subtree: true, childList: true });
+
+      document.addEventListener('keydown', (e) => {
+        const modal = document.querySelector('.modal.active');
+        if (!modal) return;
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          // Prefer the modal's own close control so app-specific cleanup runs
+          const closeEl = modal.querySelector('.close');
+          if (closeEl) closeEl.click(); else modal.classList.remove('active');
+        } else if (e.key === 'Tab') {
+          const focusable = getModalFocusable(modal);
+          if (focusable.length === 0) { e.preventDefault(); return; }
+          const first = focusable[0];
+          const last = focusable[focusable.length - 1];
+          if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+          } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+          } else if (!modal.contains(document.activeElement)) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      });
+
+      // Handle any modal that is already active at init time
+      sync();
+    }
+
     function initCreateLinkModal() {
       const modal = document.getElementById('create-link-modal');
       const createBtn = document.getElementById('create-link-btn');
@@ -3181,15 +3272,28 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       }
     }
     
+    function handleTagBadgeClick(e) {
+      const target = e.target.closest('[data-action="remove-tag"]');
+      if (!target || !target.dataset) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const tagId = target.dataset.tagId;
+      if (tagId) window.removeTag(tagId);
+    }
+
     function updateTagsUI() {
       const container = document.getElementById('link-tags-container');
       if (!container) return;
-      
-      container.innerHTML = selectedTags.map(tag => 
-        '<span class="tag-badge" style="background: ' + (tag.color || '#007bff') + '; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; cursor: pointer;" data-tag-id="' + tag.id + '" onclick="removeTag(this.dataset.tagId)">' +
-          tag.name + ' ×' +
+
+      container.innerHTML = selectedTags.map(tag =>
+        '<span class="tag-badge" style="background: ' + escapeAttr(tag.color || '#007bff') + '; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; cursor: pointer;" data-action="remove-tag" data-tag-id="' + escapeAttr(tag.id) + '">' +
+          escapeHtml(tag.name) + ' ×' +
         '</span>'
       ).join('');
+
+      // Attach event delegation for tag removal (CSP-compliant)
+      container.removeEventListener('click', handleTagBadgeClick);
+      container.addEventListener('click', handleTagBadgeClick);
     }
     
     function updateTagFilters() {
@@ -4394,7 +4498,15 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           return;
         }
         
-        const response = await apiRequest('/domains/' + domainId, { method: 'DELETE' });
+        // DELETE is deactivate-only/idempotent; re-activation must go through PUT.
+        if (currentStatus === 'active') {
+          await apiRequest('/domains/' + domainId, { method: 'DELETE' });
+        } else {
+          await apiRequest('/domains/' + domainId, {
+            method: 'PUT',
+            body: JSON.stringify({ status: 'active' })
+          });
+        }
         await loadDomains();
         await loadDomainSelector();
         showToast('Domain ' + actionPast + ' successfully!', 'success');
@@ -4800,7 +4912,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       } catch (error) {
         const content = document.getElementById('analytics-content');
         if (content) {
-          content.innerHTML = '<p style="color: var(--error-color);">Failed to load analytics: ' + error.message + '</p>';
+          content.innerHTML = '<p style="color: var(--error-color);">Failed to load analytics: ' + escapeHtml(error.message) + '</p>';
         }
         showToast('Failed to load analytics: ' + error.message, 'error');
       }
@@ -5174,7 +5286,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       
       const html = geography.slice(0, 10).map(g => 
         '<div style="display: flex; justify-content: space-between; padding: 0.5rem; border-bottom: 1px solid var(--border-color);">' +
-          '<span>' + (g.country || 'Unknown') + (g.city ? ', ' + g.city : '') + '</span>' +
+          '<span>' + escapeHtml(g.country || 'Unknown') + (g.city ? ', ' + escapeHtml(g.city) : '') + '</span>' +
           '<span style="font-weight: 600;">' + (g.clicks || 0).toLocaleString() + '</span>' +
         '</div>'
       ).join('');
@@ -5194,7 +5306,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       
       const html = referrers.slice(0, 10).map(r => 
         '<div style="display: flex; justify-content: space-between; padding: 0.5rem; border-bottom: 1px solid var(--border-color);">' +
-          '<span>' + (r.referrer_domain || 'Direct') + '</span>' +
+          '<span>' + escapeHtml(r.referrer_domain || 'Direct') + '</span>' +
           '<span style="font-weight: 600;">' + (r.clicks || 0).toLocaleString() + '</span>' +
         '</div>'
       ).join('');
@@ -5214,10 +5326,10 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       
       const html = utmCampaigns.slice(0, 10).map(u => 
         '<div style="display: flex; justify-content: space-between; padding: 0.5rem; border-bottom: 1px solid var(--border-color);">' +
-          '<span>' + 
-            (u.utm_source || '') + 
-            (u.utm_medium ? ' / ' + u.utm_medium : '') + 
-            (u.utm_campaign ? ' / ' + u.utm_campaign : '') +
+          '<span>' +
+            escapeHtml(u.utm_source || '') +
+            (u.utm_medium ? ' / ' + escapeHtml(u.utm_medium) : '') +
+            (u.utm_campaign ? ' / ' + escapeHtml(u.utm_campaign) : '') +
           '</span>' +
           '<span style="font-weight: 600;">' + (u.clicks || 0).toLocaleString() + '</span>' +
         '</div>'
@@ -6400,7 +6512,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       } catch (error) {
         const content = document.getElementById('account-info-content');
         if (content) {
-          content.innerHTML = '<p style="color: #dc3545;">Failed to load account information: ' + error.message + '</p>';
+          content.innerHTML = '<p style="color: #dc3545;">Failed to load account information: ' + escapeHtml(error.message) + '</p>';
         }
       }
     }
@@ -6414,7 +6526,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       } catch (error) {
         const content = document.getElementById('security-content');
         if (content) {
-          content.innerHTML = '<p style="color: #dc3545;">Failed to load security settings: ' + error.message + '</p>';
+          content.innerHTML = '<p style="color: #dc3545;">Failed to load security settings: ' + escapeHtml(error.message) + '</p>';
         }
       }
     }
@@ -6435,7 +6547,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       } catch (error) {
         const content = document.getElementById('status-check-content');
         if (content) {
-          content.innerHTML = '<p style="color: #dc3545;">Failed to load status check settings: ' + error.message + '</p>';
+          content.innerHTML = '<p style="color: #dc3545;">Failed to load status check settings: ' + escapeHtml(error.message) + '</p>';
         }
       }
     }
@@ -6456,7 +6568,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       } catch (error) {
         const content = document.getElementById('analytics-aggregation-content');
         if (content) {
-          content.innerHTML = '<p style="color: #dc3545;">Failed to load analytics aggregation settings: ' + error.message + '</p>';
+          content.innerHTML = '<p style="color: #dc3545;">Failed to load analytics aggregation settings: ' + escapeHtml(error.message) + '</p>';
         }
       }
     }
@@ -6478,7 +6590,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       } catch (error) {
         const content = document.getElementById('default-page-content');
         if (content) {
-          content.innerHTML = '<p style="color: #dc3545;">Failed to load default page settings: ' + error.message + '</p>';
+          content.innerHTML = '<p style="color: #dc3545;">Failed to load default page settings: ' + escapeHtml(error.message) + '</p>';
         }
       }
     }
@@ -6583,7 +6695,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       } catch (error) {
         const content = document.getElementById('user-management-content');
         if (content) {
-          content.innerHTML = '<p style="color: #dc3545;">Failed to load user management: ' + error.message + '</p>';
+          content.innerHTML = '<p style="color: #dc3545;">Failed to load user management: ' + escapeHtml(error.message) + '</p>';
         }
       }
     }
@@ -6604,7 +6716,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       } catch (error) {
         const content = document.getElementById('audit-log-content');
         if (content) {
-          content.innerHTML = '<p style="color: #dc3545;">Failed to load audit logs: ' + error.message + '</p>';
+          content.innerHTML = '<p style="color: #dc3545;">Failed to load audit logs: ' + escapeHtml(error.message) + '</p>';
         }
       }
     }
@@ -6944,7 +7056,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           });
         }
       } catch (error) {
-        content.innerHTML = '<p style="color: #dc3545;">Failed to load status check settings: ' + error.message + '</p>';
+        content.innerHTML = '<p style="color: #dc3545;">Failed to load status check settings: ' + escapeHtml(error.message) + '</p>';
       }
     }
     
@@ -7104,7 +7216,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           });
         }
       } catch (error) {
-        content.innerHTML = '<p style="color: #dc3545;">Failed to load analytics aggregation settings: ' + error.message + '</p>';
+        content.innerHTML = '<p style="color: #dc3545;">Failed to load analytics aggregation settings: ' + escapeHtml(error.message) + '</p>';
       }
     }
     
@@ -7168,8 +7280,8 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             html += '<td>' + createdDate + '</td>';
             html += '<td>' + lastLogin + '</td>';
             html += '<td>';
-            html += '<button class="btn btn-sm btn-primary" data-user-id="' + userIdEscaped + '" onclick="editUser(this.dataset.userId)" style="margin-right: 0.5rem;">Edit</button>';
-            html += '<button class="btn btn-sm btn-secondary" data-user-id="' + userIdEscaped + '" onclick="deleteUser(this.dataset.userId)">Delete</button>';
+            html += '<button class="btn btn-sm btn-primary" data-action="edit-user" data-user-id="' + userIdEscaped + '" style="margin-right: 0.5rem;">Edit</button>';
+            html += '<button class="btn btn-sm btn-secondary" data-action="delete-user" data-user-id="' + userIdEscaped + '">Delete</button>';
             html += '</td>';
             html += '</tr>';
           });
@@ -7191,15 +7303,15 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           });
         }
         
-        // Attach edit/delete handlers
-        document.querySelectorAll('[onclick*="editUser"]').forEach(btn => {
+        // Attach edit/delete handlers (CSP-compliant: data-action, no inline onclick)
+        document.querySelectorAll('[data-action="edit-user"]').forEach(btn => {
           const userId = btn.getAttribute('data-user-id');
           if (userId) {
             btn.addEventListener('click', () => editUser(userId));
           }
         });
-        
-        document.querySelectorAll('[onclick*="deleteUser"]').forEach(btn => {
+
+        document.querySelectorAll('[data-action="delete-user"]').forEach(btn => {
           const userId = btn.getAttribute('data-user-id');
           if (userId) {
             btn.addEventListener('click', () => deleteUser(userId));
@@ -7207,7 +7319,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         });
         
       } catch (error) {
-        content.innerHTML = '<p style="color: #dc3545;">Failed to load users: ' + error.message + '</p>';
+        content.innerHTML = '<p style="color: #dc3545;">Failed to load users: ' + escapeHtml(error.message) + '</p>';
       }
     }
     
@@ -7247,8 +7359,8 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       const modal = document.createElement('div');
       modal.id = 'user-modal';
       modal.className = 'modal';
-      modal.innerHTML = '<div class="modal-content" style="max-width: 600px; max-height: 90vh; overflow-y: auto;">' +
-        '<span class="close" id="user-modal-close">&times;</span>' +
+      modal.innerHTML = '<div class="modal-content" style="max-width: 600px; max-height: 90vh; overflow-y: auto;" role="dialog" aria-modal="true" aria-labelledby="user-modal-title">' +
+        '<button type="button" class="close" id="user-modal-close" aria-label="Close" style="background:none;border:none;padding:0;">&times;</button>' +
         '<h2 id="user-modal-title">Create User</h2>' +
         '<form id="user-form">' +
         '<div class="form-group">' +
@@ -7783,11 +7895,15 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       if (!confirm('Are you sure you want to disable MFA? This will make your account less secure.')) {
         return;
       }
-      
+
+      // The API now requires a valid current MFA code (or account password) to disable MFA.
+      const code = prompt('Enter your current MFA code to disable MFA:');
+      if (!code) return;
+
       try {
         await apiRequest('/auth/mfa/disable', {
           method: 'POST',
-          body: JSON.stringify({})
+          body: JSON.stringify({ mfa_code: code })
         });
         
         showToast('MFA disabled successfully', 'success');
@@ -7878,10 +7994,10 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             const date = new Date(log.created_at);
             return '<tr style="border-bottom: 1px solid var(--border-color);">' +
               '<td style="padding: 0.75rem;">' + date.toLocaleString() + '</td>' +
-              '<td style="padding: 0.75rem;"><span class="status-badge status-' + log.event_type + '">' + log.event_type + '</span></td>' +
-              '<td style="padding: 0.75rem;">' + (log.ip_address || 'N/A') + '</td>' +
-              '<td style="padding: 0.75rem;" title="' + (log.user_agent || '') + '">' + 
-                (log.user_agent ? (log.user_agent.length > 50 ? log.user_agent.substring(0, 50) + '...' : log.user_agent) : 'N/A') + 
+              '<td style="padding: 0.75rem;"><span class="status-badge status-' + escapeAttr(log.event_type) + '">' + escapeHtml(log.event_type) + '</span></td>' +
+              '<td style="padding: 0.75rem;">' + escapeHtml(log.ip_address || 'N/A') + '</td>' +
+              '<td style="padding: 0.75rem;" title="' + escapeAttr(log.user_agent || '') + '">' +
+                escapeHtml(log.user_agent ? (log.user_agent.length > 50 ? log.user_agent.substring(0, 50) + '...' : log.user_agent) : 'N/A') +
               '</td>' +
               '</tr>';
           }).join('') +
@@ -7898,7 +8014,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       } catch (error) {
         const container = document.getElementById('audit-logs-container');
         if (container) {
-          container.innerHTML = '<p style="color: #dc3545;">Failed to load audit logs: ' + error.message + '</p>';
+          container.innerHTML = '<p style="color: #dc3545;">Failed to load audit logs: ' + escapeHtml(error.message) + '</p>';
         }
         const paginationContainer = document.getElementById('audit-logs-pagination');
         if (paginationContainer) {
@@ -9617,7 +9733,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
                 '<div class="api-doc-code-block" style="margin-bottom: 0.5rem;">' +
                   '<pre style="margin: 0; font-family: monospace; font-size: 0.875rem; white-space: pre-wrap;"><code>' + escapeHtml(requestBodyJson) + '</code></pre>' +
                 '</div>' +
-                '<button onclick="copyToClipboard(' + JSON.stringify(escapeHtml(endpoint.id) + '-request') + ')" class="btn btn-secondary btn-sm" style="margin-bottom: 1rem;">Copy Request Example</button>' +
+                '<button class="btn btn-secondary btn-sm copy-example-btn" data-copy-target="' + escapeAttr(endpoint.id) + '-request" style="margin-bottom: 1rem;">Copy Request Example</button>' +
                 '<div id="' + escapeHtml(endpoint.id) + '-request" style="display: none;">' + escapeHtml(requestBodyJson) + '</div>' +
               '</div>' : '') +
               '<div style="margin-bottom: 1rem;">' +
@@ -9625,7 +9741,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
                 '<div class="api-doc-code-block" style="margin-bottom: 0.5rem;">' +
                   '<pre style="margin: 0; font-family: monospace; font-size: 0.875rem; white-space: pre-wrap;"><code>' + escapeHtml(responseJson) + '</code></pre>' +
                 '</div>' +
-                '<button onclick="copyToClipboard(' + JSON.stringify(escapeHtml(endpoint.id) + '-response') + ')" class="btn btn-secondary btn-sm">Copy Response Example</button>' +
+                '<button class="btn btn-secondary btn-sm copy-example-btn" data-copy-target="' + escapeAttr(endpoint.id) + '-response">Copy Response Example</button>' +
                 '<div id="' + escapeHtml(endpoint.id) + '-response" style="display: none;">' + escapeHtml(responseJson) + '</div>' +
               '</div>' +
               '<div class="api-doc-warning-box">' +
@@ -9737,6 +9853,18 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           button.addEventListener('click', (e) => {
             e.stopPropagation(); // Prevent triggering card toggle
             loadEndpointIntoPlayground(cleanId);
+          });
+        }
+      });
+
+      // Attach click listeners to "Copy Request/Response Example" buttons
+      // (CSP-compliant: data-copy-target, no inline onclick)
+      document.querySelectorAll('.copy-example-btn').forEach(button => {
+        const target = button.getAttribute('data-copy-target');
+        if (target) {
+          button.addEventListener('click', (e) => {
+            e.stopPropagation();
+            copyToClipboard(target);
           });
         }
       });
@@ -10184,6 +10312,23 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       }
     }
     
+    // Delegated live-preview handler for the request builder (CSP-compliant:
+    // replaces the inline oninput/onchange that the CSP nonce does not authorize).
+    // Fields carry data-pg-action; input+change are delegated on the builder root.
+    function handlePlaygroundFieldEvent(e) {
+      const target = e.target;
+      if (!target || !target.dataset) return;
+      const action = target.dataset.pgAction;
+      if (!action) return;
+      if (action === 'update-url-preview') {
+        window.updateUrlPreview();
+      } else if (action === 'update-body-domain') {
+        window.updateBodyDomainId();
+      } else if (action === 'update-body-fields') {
+        window.updateBodyFromFields();
+      }
+    }
+
     function updateEndpointForm(endpointId) {
       const endpoint = apiEndpoints.find(ep => ep.id === endpointId);
       if (!endpoint) {
@@ -10219,7 +10364,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
               param.name + ' ' + required + '</label>' +
               '<input type="text" id="path-' + param.name + '" placeholder="' + param.description + '" ' +
               'style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;" ' +
-              'oninput="updateUrlPreview()">' +
+              'data-pg-action="update-url-preview">' +
               '</div>';
           }).join('');
       } else {
@@ -10248,7 +10393,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
                 param.name + ' ' + required + '</label>' +
                 '<select id="query-' + param.name + '" ' +
                 'style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;" ' +
-                'onchange="updateUrlPreview()">' +
+                'data-pg-action="update-url-preview">' +
                 '<option value="">-- Select Domain --</option>' +
                 options +
                 '</select>' +
@@ -10261,7 +10406,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
               param.name + ' ' + required + '</label>' +
               '<input type="' + inputType + '" id="query-' + param.name + '" placeholder="' + param.description + '" ' +
               'style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;" ' +
-              'oninput="updateUrlPreview()">' +
+              'data-pg-action="update-url-preview">' +
               '</div>';
           }).join('');
       } else {
@@ -10287,7 +10432,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           domainSelector.id = 'body-domain-selector';
           domainSelector.style.marginBottom = '0.5rem';
           domainSelector.innerHTML = '<label style="display: block; margin-bottom: 0.5rem; font-size: 0.875rem; color: var(--secondary-color);">Domain <span style="color: #dc3545;">*</span></label>' +
-            '<select id="body-domain-select" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;" onchange="updateBodyDomainId()">' +
+            '<select id="body-domain-select" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;" data-pg-action="update-body-domain">' +
             '<option value="">-- Select Domain --</option>' +
             filteredDomains.map(d => '<option value="' + d.id + '">' + d.domain_name + '</option>').join('') +
             '</select>';
@@ -10330,7 +10475,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
                 
                 let inputHtml = '';
                 if (param.type === 'boolean') {
-                  inputHtml = '<select id="' + inputId + '" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;" onchange="updateBodyFromFields()">' +
+                  inputHtml = '<select id="' + inputId + '" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;" data-pg-action="update-body-fields">' +
                     '<option value="">-- Select --</option>' +
                     '<option value="true">true</option>' +
                     '<option value="false">false</option>' +
@@ -10338,23 +10483,23 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
                 } else if (param.type === 'number') {
                   inputHtml = '<input type="number" id="' + inputId + '" placeholder="' + (param.description || param.name) + '" ' +
                     'style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;" ' +
-                    'oninput="updateBodyFromFields()">';
+                    'data-pg-action="update-body-fields">';
                 } else if (param.type === 'array') {
                   inputHtml = '<textarea id="' + inputId + '" placeholder="Enter JSON array, e.g., [&quot;item1&quot;, &quot;item2&quot;]" ' +
                     'style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px; min-height: 60px; font-family: monospace; font-size: 0.875rem;" ' +
-                    'oninput="updateBodyFromFields()"></textarea>' +
+                    'data-pg-action="update-body-fields"></textarea>' +
                     '<small style="display: block; margin-top: 0.25rem; color: var(--secondary-color); font-size: 0.75rem;">Enter a valid JSON array</small>';
                 } else if (param.type === 'object') {
                   inputHtml = '<textarea id="' + inputId + '" placeholder="Enter JSON object, e.g., {&quot;key&quot;: &quot;value&quot;}" ' +
                     'style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px; min-height: 80px; font-family: monospace; font-size: 0.875rem;" ' +
-                    'oninput="updateBodyFromFields()"></textarea>' +
+                    'data-pg-action="update-body-fields"></textarea>' +
                     '<small style="display: block; margin-top: 0.25rem; color: var(--secondary-color); font-size: 0.75rem;">Enter a valid JSON object</small>';
                 } else {
                   // String or default
                   const isUrl = param.name === 'destination_url' || param.name === 'url';
                   inputHtml = '<input type="' + (isUrl ? 'url' : 'text') + '" id="' + inputId + '" placeholder="' + (param.description || param.name) + '" ' +
                     'style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;" ' +
-                    'oninput="updateBodyFromFields()">';
+                    'data-pg-action="update-body-fields">';
                 }
                 
                 return '<div style="margin-bottom: 0.75rem;">' +
@@ -10399,7 +10544,15 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       } else {
         fileDiv.style.display = 'none';
       }
-      
+
+      // Attach delegated live-preview listeners for the freshly-rendered fields
+      // (CSP-compliant replacement for inline oninput/onchange). remove+add keeps
+      // it idempotent across repeated updateEndpointForm() calls.
+      builder.removeEventListener('input', handlePlaygroundFieldEvent);
+      builder.removeEventListener('change', handlePlaygroundFieldEvent);
+      builder.addEventListener('input', handlePlaygroundFieldEvent);
+      builder.addEventListener('change', handlePlaygroundFieldEvent);
+
       updateSendButton();
     }
     
@@ -10877,6 +11030,13 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       }
     }
     
+    function handleHistoryItemClick(e) {
+      const item = e.target.closest('.history-item');
+      if (!item || !item.dataset) return;
+      const historyId = item.dataset.historyId;
+      if (historyId) window.loadRequestFromHistory(historyId);
+    }
+
     function loadRequestHistory() {
       const historyList = document.getElementById('request-history-list');
       if (!historyList) return;
@@ -10895,15 +11055,19 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           const timeStr = time.toLocaleString();
           const methodClass = item.method.toLowerCase();
           const endpointName = apiEndpoints.find(ep => ep.id === item.endpoint)?.name || item.endpoint;
-          
-          return '<div class="history-item" onclick="loadRequestFromHistory(' + JSON.stringify(item.id) + ')">' +
+
+          return '<div class="history-item" data-history-id="' + escapeAttr(item.id) + '">' +
             '<div style="display: flex; align-items: center; margin-bottom: 0.25rem;">' +
-            '<span class="history-method ' + methodClass + '">' + item.method + '</span>' +
-            '<span style="font-weight: 600;">' + endpointName + '</span>' +
+            '<span class="history-method ' + escapeAttr(methodClass) + '">' + escapeHtml(item.method) + '</span>' +
+            '<span style="font-weight: 600;">' + escapeHtml(endpointName) + '</span>' +
             '</div>' +
-            '<div class="history-time">' + timeStr + '</div>' +
+            '<div class="history-time">' + escapeHtml(timeStr) + '</div>' +
             '</div>';
         }).join('');
+
+        // Delegated click handler (CSP-compliant replacement for inline onclick)
+        historyList.removeEventListener('click', handleHistoryItemClick);
+        historyList.addEventListener('click', handleHistoryItemClick);
       } catch (e) {
         console.error('Failed to load request history:', e);
         historyList.innerHTML = '<p style="color: #dc3545; text-align: center; padding: 1rem;">Failed to load history</p>';
@@ -11859,7 +12023,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         
         updateLinksByDestinationPagination(pagination);
       } catch (error) {
-        listDiv.innerHTML = '<p style="color: #dc3545;">Failed to load links: ' + error.message + '</p>';
+        listDiv.innerHTML = '<p style="color: #dc3545;">Failed to load links: ' + escapeHtml(error.message) + '</p>';
       }
     }
     
@@ -11871,19 +12035,33 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         let html = '<div class="pagination-buttons">';
         
         // Previous button
-        html += '<button class="pagination-btn" ' + (linksByDestinationState.currentPage === 1 ? 'disabled' : '') + ' onclick="linksByDestinationState.currentPage--; loadLinksByDestination();">Previous</button>';
-        
+        html += '<button class="pagination-btn" data-page="' + (linksByDestinationState.currentPage - 1) + '" ' + (linksByDestinationState.currentPage === 1 ? 'disabled' : '') + '>Previous</button>';
+
         // Page numbers
         for (let i = 1; i <= Math.min(totalPages, 10); i++) {
-          html += '<button class="pagination-btn ' + (i === linksByDestinationState.currentPage ? 'active' : '') + '" onclick="linksByDestinationState.currentPage = ' + i + '; loadLinksByDestination();">' + i + '</button>';
+          html += '<button class="pagination-btn ' + (i === linksByDestinationState.currentPage ? 'active' : '') + '" data-page="' + i + '">' + i + '</button>';
         }
         
         // Next button
-        html += '<button class="pagination-btn" ' + (linksByDestinationState.currentPage >= totalPages ? 'disabled' : '') + ' onclick="linksByDestinationState.currentPage++; loadLinksByDestination();">Next</button>';
+        html += '<button class="pagination-btn" data-page="' + (linksByDestinationState.currentPage + 1) + '" ' + (linksByDestinationState.currentPage >= totalPages ? 'disabled' : '') + '>Next</button>';
         html += '</div>';
         controlsDiv.innerHTML = html;
+
+        // Delegated pagination handler (CSP-compliant replacement for inline onclick)
+        controlsDiv.removeEventListener('click', handleLinksByDestinationPageClick);
+        controlsDiv.addEventListener('click', handleLinksByDestinationPageClick);
       } else if (controlsDiv) {
         controlsDiv.innerHTML = '';
+      }
+    }
+
+    function handleLinksByDestinationPageClick(e) {
+      const btn = e.target.closest('.pagination-btn');
+      if (!btn || btn.disabled) return;
+      const page = parseInt(btn.getAttribute('data-page'), 10);
+      if (!isNaN(page)) {
+        linksByDestinationState.currentPage = page;
+        loadLinksByDestination();
       }
     }
     
@@ -11891,9 +12069,9 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       try {
         // Show modal for bulk editing destination URL
         let html = '<div class="modal active" id="bulk-edit-destination-modal">';
-        html += '<div class="modal-content" style="max-width: 600px;">';
-        html += '<span class="close" id="close-bulk-edit-modal">&times;</span>';
-        html += '<h2>Bulk Edit Destination URL</h2>';
+        html += '<div class="modal-content" style="max-width: 600px;" role="dialog" aria-modal="true" aria-labelledby="bulk-edit-destination-modal-title">';
+        html += '<button type="button" class="close" id="close-bulk-edit-modal" aria-label="Close" style="background:none;border:none;padding:0;">&times;</button>';
+        html += '<h2 id="bulk-edit-destination-modal-title">Bulk Edit Destination URL</h2>';
         html += '<p style="margin-bottom: 1rem; color: var(--secondary-color);">Update destination URL for <strong>' + linkIds.length + '</strong> link' + (linkIds.length !== 1 ? 's' : '') + '</p>';
         html += '<div style="margin-bottom: 1rem;">';
         html += '<label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Current Destination URL:</label>';
@@ -12054,6 +12232,7 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       }
       
       // Initialize all components
+      initModalA11y();
       initCreateLinkModal();
       initApiKeyModal();
       initAddDomainModal();
@@ -13303,9 +13482,9 @@ function showQRCode(dataset) {
   // Create modal
   const modalHtml = 
     '<div class="modal active" id="qr-modal">' +
-    '  <div class="modal-content" style="max-width: 400px;">' +
-    '    <span class="close" id="qr-modal-close">&times;</span>' +
-    '    <h2>QR Code</h2>' +
+    '  <div class="modal-content" style="max-width: 400px;" role="dialog" aria-modal="true" aria-labelledby="qr-modal-title">' +
+    '    <button type="button" class="close" id="qr-modal-close" aria-label="Close" style="background:none;border:none;padding:0;">&times;</button>' +
+    '    <h2 id="qr-modal-title">QR Code</h2>' +
     '    <p style="margin-bottom: 1rem; word-break: break-all;">' + escapeHtml(shortUrl) + '</p>' +
     '    <div id="qrcode" style="display: flex; justify-content: center; margin: 1.5rem 0;"></div>' +
     '    <div style="display: flex; gap: 0.5rem; justify-content: center;">' +
@@ -14371,17 +14550,31 @@ function renderPaginatedTable(container, title, headers, data, tableId, pageSize
   if (totalPages > 1) {
     htmlParts.push([
       '<div class="pagination-controls">',
-        '<button class="btn btn-secondary btn-sm" onclick="changePage(&apos;' + tableId + '&apos;, -1)" ' + (currentPage === 1 ? 'disabled' : '') + '>Previous</button>',
+        '<button class="btn btn-secondary btn-sm analytics-page-btn" data-table-id="' + escapeAttr(tableId) + '" data-delta="-1" ' + (currentPage === 1 ? 'disabled' : '') + '>Previous</button>',
         '<span class="pagination-info">Page ' + currentPage + ' of ' + totalPages + '</span>',
-        '<button class="btn btn-secondary btn-sm" onclick="changePage(&apos;' + tableId + '&apos;, 1)" ' + (currentPage === totalPages ? 'disabled' : '') + '>Next</button>',
+        '<button class="btn btn-secondary btn-sm analytics-page-btn" data-table-id="' + escapeAttr(tableId) + '" data-delta="1" ' + (currentPage === totalPages ? 'disabled' : '') + '>Next</button>',
       '</div>'
     ].join(''));
   }
 
   container.innerHTML = htmlParts.join('');
 
+  // Delegated pagination handler (CSP-compliant replacement for inline onclick)
+  container.removeEventListener('click', handleAnalyticsPageClick);
+  container.addEventListener('click', handleAnalyticsPageClick);
+
   // Store data for re-rendering
   window['data_' + tableId] = { container, title, headers, data, pageSize };
+}
+
+function handleAnalyticsPageClick(e) {
+  const btn = e.target.closest('.analytics-page-btn');
+  if (!btn || btn.disabled) return;
+  const tableId = btn.getAttribute('data-table-id');
+  const delta = parseInt(btn.getAttribute('data-delta'), 10);
+  if (tableId && !isNaN(delta)) {
+    window.changePage(tableId, delta);
+  }
 }
 
 window.changePage = function (tableId, delta) {

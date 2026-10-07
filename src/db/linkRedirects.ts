@@ -399,28 +399,65 @@ export interface RedirectData {
 }
 
 export async function saveLinkRedirects(env: Env, linkId: string, data: RedirectData): Promise<void> {
+  const now = Date.now();
+  // Collect every rule as a prepared upsert and run them in a single D1 batch,
+  // instead of one sequential round trip per rule (e.g. 20 country rules = 20 trips).
+  const statements: D1PreparedStatement[] = [];
+
   if (data.geo_redirects && data.geo_redirects.length > 0) {
     for (const geo of data.geo_redirects) {
-      await upsertGeoRedirect(env, linkId, geo.country_code, geo.destination_url);
+      statements.push(
+        env.DB.prepare(
+          `INSERT INTO link_geo_redirects (id, link_id, country_code, destination_url, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT(link_id, country_code)
+           DO UPDATE SET destination_url = ?, updated_at = ?`
+        ).bind(generateId('geo'), linkId, geo.country_code.toUpperCase(), geo.destination_url, now, now, geo.destination_url, now)
+      );
     }
   }
 
   if (data.device_redirects && data.device_redirects.length > 0) {
     for (const device of data.device_redirects) {
-      await upsertDeviceRedirect(env, linkId, device.device_type, device.destination_url);
+      statements.push(
+        env.DB.prepare(
+          `INSERT INTO link_device_redirects (id, link_id, device_type, destination_url, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT(link_id, device_type)
+           DO UPDATE SET destination_url = ?, updated_at = ?`
+        ).bind(generateId('device'), linkId, device.device_type, device.destination_url, now, now, device.destination_url, now)
+      );
     }
   }
 
   if (data.city_redirects && data.city_redirects.length > 0) {
     for (const city of data.city_redirects) {
-      await upsertCityRedirect(env, linkId, city.city_name, city.destination_url);
+      statements.push(
+        env.DB.prepare(
+          `INSERT INTO link_city_redirects (id, link_id, city_name, destination_url, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT(link_id, city_name)
+           DO UPDATE SET destination_url = ?, updated_at = ?`
+        ).bind(generateId('city'), linkId, city.city_name.toLowerCase(), city.destination_url, now, now, city.destination_url, now)
+      );
     }
   }
 
   if (data.os_redirects && data.os_redirects.length > 0) {
     for (const os of data.os_redirects) {
-      await upsertOsRedirect(env, linkId, os.os, os.destination_url);
+      statements.push(
+        env.DB.prepare(
+          `INSERT INTO link_os_redirects (id, link_id, os, destination_url, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT(link_id, os)
+           DO UPDATE SET destination_url = ?, updated_at = ?`
+        ).bind(generateId('os'), linkId, os.os, os.destination_url, now, now, os.destination_url, now)
+      );
     }
+  }
+
+  if (statements.length > 0) {
+    await env.DB.batch(statements);
   }
 }
 

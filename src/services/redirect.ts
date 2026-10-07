@@ -18,13 +18,15 @@ import { renderOgPreviewPage } from '../views/ogPreview';
 
 /**
  * Merges query parameters from the request URL into the destination URL.
- * Request parameters override destination parameters if there are duplicates.
- * 
+ * Owner-configured destination parameters win: a request param is only copied
+ * over when the destination URL does NOT already define that key. This stops a
+ * visitor from overriding owner-set params (e.g. utm_source) via the query string.
+ *
  * @param destinationUrl - The destination URL to merge parameters into
  * @param requestUrl - The request URL containing parameters to merge
  * @returns The destination URL with merged query parameters
  */
-function mergeQueryParams(destinationUrl: string, requestUrl: URL): string {
+export function mergeQueryParams(destinationUrl: string, requestUrl: URL): string {
   try {
     // Parse the destination URL
     const destUrl = new URL(destinationUrl);
@@ -35,9 +37,12 @@ function mergeQueryParams(destinationUrl: string, requestUrl: URL): string {
       return destinationUrl;
     }
 
-    // Merge parameters: request parameters override destination parameters
+    // Merge parameters: only copy a request param when the destination does not
+    // already define that key, so owner-configured params are never overridden.
     requestParams.forEach((value, key) => {
-      destUrl.searchParams.set(key, value);
+      if (!destUrl.searchParams.has(key)) {
+        destUrl.searchParams.set(key, value);
+      }
     });
 
     return destUrl.toString();
@@ -187,6 +192,13 @@ export async function handleRedirect(
     return new Response('Link has expired', { status: 410 });
   }
 
+  // Check link status (from cache) — a disabled/archived link may still be cached
+  // (the cache entry is rewritten, not deleted, on a status-changing PUT). Mirror the
+  // cache-MISS path so non-active links stop redirecting instead of serving forever.
+  if (cached.status !== 'active') {
+    return new Response('Link is not available', { status: 403 });
+  }
+
   // Strict Routing Check (performed AFTER cache retrieval to ensure it applies to cached links too)
   if (matchedRoute) {
     const linkRoute = cached.route;
@@ -303,7 +315,15 @@ export async function handleRedirect(
   // 301/308 are permanent → cache long (1 year)
   // 302/307 are temporary → cache short (1 hour)
   const isPermanent = redirectCode === 301 || redirectCode === 308;
-  const cacheMaxAge = isPermanent ? 31536000 : 3600; // 1 year for permanent, 1 hour for temporary
+  // Links that carry ANY per-visitor redirect rule (geo/city/os/device) must not be
+  // frozen in the browser for a year: a rule/destination edit would never reach a
+  // returning visitor, and the same cached Location could be replayed regardless of
+  // the visitor's new geo/device. Cap those to a short max-age and drop `immutable`
+  // so edits propagate. Rule-free links keep the long permanent-redirect cache.
+  const hasRules = !!(cached.geo_redirects || cached.city_redirects || cached.os_redirects || cached.device_redirects);
+  const cacheMaxAge = isPermanent
+    ? (hasRules ? 300 : 31536000) // 5 min for rule-bearing permanent redirects, else 1 year
+    : 3600; // 1 hour for temporary
   // Geo (country) and city redirects are resolved from request.cf, which cannot
   // participate in a Vary header — so a shared cache could replay one visitor's
   // geo-specific destination to visitors elsewhere. Mark those responses `private`
@@ -311,7 +331,7 @@ export async function handleRedirect(
   // so they can safely remain `public`.
   const geoVariant = !!(cached.geo_redirects || cached.city_redirects);
   const cacheScope = geoVariant ? 'private' : 'public';
-  const cacheControl = isPermanent
+  const cacheControl = (isPermanent && !hasRules)
     ? `${cacheScope}, max-age=${cacheMaxAge}, immutable`
     : `${cacheScope}, max-age=${cacheMaxAge}`;
 
@@ -371,9 +391,13 @@ export function buildVaryHeader(cached: CachedLink): string | undefined {
  * Priority: City > Country > OS > Device > Default URL
  */
 export function resolveDestinationUrl(cached: CachedLink, request: Request): string {
-  const geo = extractGeoFromRequest(request);
-  const country = geo.country.toUpperCase();
-  const city = geo.city.toLowerCase();
+  // For RULE MATCHING trust ONLY Cloudflare-populated request.cf values — never the
+  // client-supplied cf-ipcountry/cf-ipcity headers (which a visitor can forge to pick
+  // which destination they are served). The header fallback in extractGeoFromRequest
+  // stays for analytics logging only.
+  const cf = (request as { cf?: { city?: string; country?: string } }).cf;
+  const country = (cf?.country || '').toUpperCase();
+  const city = (cf?.city || '').toLowerCase();
 
   // Extract device type and OS from user-agent
   const userAgent = request.headers.get('user-agent') || '';
@@ -427,6 +451,14 @@ async function trackClickAsync(
     // Extract metadata from request
     const url = new URL(request.url);
     const userAgent = request.headers.get('user-agent') || '';
+
+    // Bots/crawlers must not count as clicks. trackClick already drops bots from
+    // Analytics Engine, but incrementClickCount would still bump links.click_count —
+    // gate the whole tracking path so the dashboard count matches analytics.
+    if (isBot(userAgent)) {
+      return;
+    }
+
     const referrer = request.headers.get('referer') || request.headers.get('referrer') || '';
     const geo = extractGeoFromRequest(request);
     const cfCountry = geo.country || 'unknown';
@@ -446,37 +478,39 @@ async function trackClickAsync(
     const referrerDomain = extractReferrerDomain(referrer);
 
     // Track click to Analytics Engine only
-    // Aggregation to D1 happens in background scheduled job for data ≥ 90 days old
-    await trackClick(env, {
-      timestamp,
-      link_id: linkId,
-      domain,
-      slug,
-      destination_url: destinationUrl,
-      country: cfCountry,
-      city: cfCity,
-      user_agent: userAgent,
-      referrer,
-      ip_address: hashedIp,
-      device_type,
-      browser,
-      os,
-      utm_source,
-      utm_medium,
-      utm_campaign,
-      gclid,
-      fbclid,
-      msclkid,
-      ttclid,
-      li_fat_id,
-      twclid,
-      custom_param1,
-      custom_param2,
-      custom_param3,
-    });
-
-    // Increment click count (async)
-    await incrementClickCount(env, linkId);
+    // Aggregation to D1 happens in background scheduled job for data ≥ 90 days old.
+    // trackClick and incrementClickCount are independent — run them concurrently.
+    await Promise.all([
+      trackClick(env, {
+        timestamp,
+        link_id: linkId,
+        domain,
+        slug,
+        destination_url: destinationUrl,
+        country: cfCountry,
+        city: cfCity,
+        user_agent: userAgent,
+        referrer,
+        ip_address: hashedIp,
+        device_type,
+        browser,
+        os,
+        utm_source,
+        utm_medium,
+        utm_campaign,
+        gclid,
+        fbclid,
+        msclkid,
+        ttclid,
+        li_fat_id,
+        twclid,
+        custom_param1,
+        custom_param2,
+        custom_param3,
+      }),
+      // Increment click count (async)
+      incrementClickCount(env, linkId),
+    ]);
   } catch (error) {
     // Enhanced error logging with full context
     const errorDetails = {

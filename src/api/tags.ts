@@ -88,6 +88,7 @@ tagsRouter.get('/:id', authMiddleware, async (c) => {
 // createRateLimit({ window: 60, max: 30, key: (c) => `tag:create:${c.req.header('CF-Connecting-IP')}` })
 tagsRouter.post('/', authMiddleware, requirePermission('manage_tags'), validateJson(createTagSchema), async (c) => {
   const validated = c.req.valid('json');
+  const user = c.get('user') as User;
 
   // Validate domain exists if domain_id is provided
   if (validated.domain_id) {
@@ -97,22 +98,43 @@ tagsRouter.post('/', authMiddleware, requirePermission('manage_tags'), validateJ
     }
 
     // Check domain access
-    const user = c.get('user') as User;
     const hasAccess = await canAccessDomain(c.env, user, validated.domain_id);
     if (!hasAccess) {
       throw new HTTPException(403, { message: 'Access denied. You do not have access to this domain.' });
     }
+  } else {
+    // Global (null-domain) tags are shared by every tenant — restrict creation to admin/owner.
+    if (user.role !== 'admin' && user.role !== 'owner') {
+      throw new HTTPException(403, { message: 'Only administrators can create global tags.' });
+    }
   }
 
-  // Check if tag already exists for this domain
-  const existingTags = await listTags(c.env, { domainId: validated.domain_id });
-  if (existingTags.some(t => t.name.toLowerCase() === validated.name.toLowerCase())) {
+  // Duplicate check scoped to the SAME scope only: global names conflict only with
+  // other globals; domain names only with tags in the same domain. Passing no domainId
+  // to listTags returns ALL tags, so filter to globals ourselves.
+  let scopeTags = await listTags(c.env, { domainId: validated.domain_id });
+  if (!validated.domain_id) {
+    scopeTags = scopeTags.filter(t => !t.domain_id);
+  }
+  if (scopeTags.some(t => t.name.toLowerCase() === validated.name.toLowerCase())) {
     throw new HTTPException(409, { message: 'Tag already exists' });
   }
 
-  const tag = await createTag(c.env, validated);
-
-  return c.json({ success: true, data: tag }, 201);
+  try {
+    const tag = await createTag(c.env, validated);
+    return c.json({ success: true, data: tag }, 201);
+  } catch (error) {
+    if (error instanceof HTTPException) {
+      throw error;
+    }
+    // Translate a UNIQUE-constraint violation (check-then-insert race) into a clean 409.
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    if (errorMsg.includes('UNIQUE constraint failed')) {
+      throw new HTTPException(409, { message: 'A tag with this name already exists' });
+    }
+    console.error('[TAG CREATE ERROR]', error);
+    throw new HTTPException(500, { message: 'Failed to create tag' });
+  }
 });
 
 // Update tag
@@ -132,6 +154,12 @@ tagsRouter.put('/:id', authMiddleware, requirePermission('manage_tags'), validat
       const hasAccess = await canAccessDomain(c.env, user, existingTag.domain_id);
       if (!hasAccess) {
         throw new HTTPException(403, { message: 'Access denied. You do not have access to this domain.' });
+      }
+    } else {
+      // Global (null-domain) tags are shared by every tenant — restrict mutation to admin/owner.
+      const user = c.get('user') as User;
+      if (user.role !== 'admin' && user.role !== 'owner') {
+        throw new HTTPException(403, { message: 'Only administrators can modify global tags.' });
       }
     }
 
@@ -167,6 +195,12 @@ tagsRouter.delete('/:id', authMiddleware, requirePermission('manage_tags'), asyn
     const hasAccess = await canAccessDomain(c.env, user, existingTag.domain_id);
     if (!hasAccess) {
       throw new HTTPException(403, { message: 'Access denied. You do not have access to this domain.' });
+    }
+  } else {
+    // Global (null-domain) tags are shared by every tenant — restrict deletion to admin/owner.
+    const user = c.get('user') as User;
+    if (user.role !== 'admin' && user.role !== 'owner') {
+      throw new HTTPException(403, { message: 'Only administrators can delete global tags.' });
     }
   }
 

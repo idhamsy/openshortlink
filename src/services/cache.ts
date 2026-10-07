@@ -15,7 +15,7 @@ const DOMAIN_CACHE_VERSION_KEY = 'domain_cache_version';
 
 // Edge cache TTLs (for KV.get cacheTtl parameter)
 // These cache KV reads at the edge datacenter for faster subsequent reads
-const LINK_CACHE_EDGE_TTL = 3600; // 1 hour - reduces KV origin fetches significantly
+const LINK_CACHE_EDGE_TTL = 60; // 60s - short edge TTL shrinks cross-PoP staleness after edits/deletes
 const DOMAIN_CACHE_EDGE_TTL = 3600; // 1 hour - domains rarely change
 const DOMAIN_VERSION_EDGE_TTL = 300; // 5 minutes - version changes trigger cache invalidation
 
@@ -54,7 +54,7 @@ export async function setCachedLink(
   link: CachedLink
 ): Promise<void> {
   const key = `link:${domain}:${slug}`;
-  await env.CACHE.put(key, JSON.stringify(link));
+  await env.CACHE.put(key, JSON.stringify(link), { expirationTtl: CACHE_TTL });
 }
 
 export async function deleteCachedLink(env: Env, domain: string, slug: string): Promise<void> {

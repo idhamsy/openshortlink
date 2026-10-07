@@ -8,30 +8,46 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { z } from 'zod';
-import type { Env } from '../types';
+import type { Env, User, ApiKeyContext } from '../types';
 import { authOrApiKeyMiddleware } from '../middleware/auth';
 import { requirePermission } from '../middleware/authorization';
 import { createLink, deleteLink } from '../db/links';
 import { getDomainById } from '../db/domains';
 import { generateSlug } from '../utils/id';
 import { isValidUrl, isValidSlug, normalizeUrl, isReservedSlug } from '../utils/validation';
+import { isInfiniteRedirect } from '../utils/domains';
 import { checkSlugExists } from '../db/links';
-import { upsertGeoRedirect, upsertDeviceRedirect, getGeoRedirects, getDeviceRedirects,
-         upsertCityRedirect, upsertOsRedirect, getCityRedirects, getOsRedirects } from '../db/linkRedirects';
+import { upsertGeoRedirect, upsertDeviceRedirect, upsertCityRedirect, upsertOsRedirect } from '../db/linkRedirects';
 import { setLinkTags, listTags, createTag, getTagById } from '../db/tags';
 import { listCategories, createCategory, getCategoryById } from '../db/categories';
 import { setCachedLink } from '../services/cache';
 import { getEffectiveLinkRoute } from '../utils/route';
+import { canAccessDomain } from '../utils/permissions';
 
 const importRouter = new Hono<{ Bindings: Env }>();
+
+/** Session users need domain access; API keys with domain_ids must include the domain. */
+export async function canImportToDomain(
+    env: Env,
+    actor: { user?: User; apiKey?: ApiKeyContext },
+    domainId: string
+): Promise<boolean> {
+    if (actor.apiKey && actor.apiKey.domain_ids && actor.apiKey.domain_ids.length > 0) {
+        if (!actor.apiKey.domain_ids.includes(domainId)) return false;
+    }
+    if (actor.user) {
+        return canAccessDomain(env, actor.user, domainId);
+    }
+    return true;
+}
 
 // Max file size: 5MB
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
 // Schema for import request
-// We expect a FormData with 'file', 'domain_id', 'column_mapping', 'slug_prefix_filter', 'delimiter'
-// But since we are processing chunks, we might receive just a chunk of the file.
-// The frontend sends: file (blob), domain_id, column_mapping (json), slug_prefix_filter (json), delimiter
+// We expect a FormData with 'file', 'domain_id', 'column_mapping', 'delimiter'.
+// Since the frontend chunks the file, we might receive just a chunk of the file.
+// The frontend sends: file (blob), domain_id, column_mapping (json), delimiter
 
 importRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links'), async (c) => {
     try {
@@ -39,7 +55,6 @@ importRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links')
         const file = formData['file'];
         const domainId = formData['domain_id'] as string;
         const columnMappingStr = formData['column_mapping'] as string;
-        const slugPrefixFilterStr = formData['slug_prefix_filter'] as string;
         const delimiter = (formData['delimiter'] as string) || ',';
 
         if (!file || !(file instanceof File)) {
@@ -59,11 +74,31 @@ importRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links')
         if (!domain) {
             throw new HTTPException(404, { message: 'Domain not found' });
         }
+        // Enforce domain access (mirrors POST /links): without this any user/API key with
+        // create_links could import into — and overwrite cache entries of — any domain.
+        const user = (c as any).get?.('user') as User | undefined;
+        const apiKey = (c as any).get?.('apiKey') as ApiKeyContext | undefined;
+        if (!(await canImportToDomain(c.env, { user, apiKey }, domainId))) {
+            throw new HTTPException(403, { message: apiKey?.domain_ids?.length && !apiKey.domain_ids.includes(domainId)
+                ? 'Domain not on scope'
+                : 'Access denied. You do not have access to this domain.' });
+        }
+        // Refuse import into an inactive domain — its links would be unreachable
+        // (mirrors POST /links).
+        if (domain.status !== 'active') {
+            throw new HTTPException(400, { message: 'Cannot import links for inactive domain. Please activate the domain first.' });
+        }
 
         // Parse mappings
         let columnMapping: Record<string, string> = {};
         try {
             columnMapping = JSON.parse(columnMappingStr || '{}');
+            // parseCSV lower-cases header names, so the mapping KEYS (which the
+            // frontend builds from the raw, original-case headers) must be
+            // lower-cased to match. Values (e.g. "city_redirect:London") keep case.
+            columnMapping = Object.fromEntries(
+                Object.entries(columnMapping).map(([k, v]) => [k.trim().toLowerCase(), v])
+            );
         } catch (e) {
             // Ignore parse error
         }
@@ -223,6 +258,11 @@ importRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links')
                 }
                 destinationUrl = normalizeUrl(destinationUrl);
 
+                // Reject self-referential / loop destinations (mirrors POST /links).
+                if (await isInfiniteRedirect(c.env, destinationUrl)) {
+                    throw new Error('Destination URL cannot point to a reserved route on a managed domain (infinite redirect loop).');
+                }
+
                 // Validate route if explicitly provided, then default to the domain's
                 // primary route so imported links are reachable and display correctly.
                 if (route) {
@@ -305,6 +345,14 @@ importRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links')
                 // The guide says: "United States" -> US, etc.
                 // We'll implement a basic detection for now based on the guide's "Supported patterns"
 
+                // Accumulate the redirect rules we upsert this row so the cache object can
+                // be built directly from them — avoiding a re-SELECT of all 4 redirect tables
+                // per row (P5). Mirrors the stored casing (geo upper-cased, city lower-cased).
+                const geoRules: Record<string, string> = {};
+                const deviceRules: { desktop?: string; mobile?: string; tablet?: string } = {};
+                const cityRules: { city_name: string; destination_url: string }[] = [];
+                const osRules: { android?: string; ios?: string } = {};
+
                 // Iterate over all keys in the row
                 for (const [key, value] of Object.entries(row)) {
                     if (!value || key === 'destination_url' || key === 'slug' || key === 'title' || key === 'description' || key === 'tags') continue;
@@ -355,22 +403,25 @@ importRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links')
 
                     if (countryCode && isValidUrl(value as string)) {
                         await upsertGeoRedirect(c.env, link.id, countryCode, value as string);
+                        geoRules[countryCode.toUpperCase()] = value as string;
                     } else if ((deviceType === 'mobile' || deviceType === 'desktop' || deviceType === 'tablet') && isValidUrl(value as string)) {
                         await upsertDeviceRedirect(c.env, link.id, deviceType, value as string);
+                        deviceRules[deviceType] = value as string;
                     } else if (cityName && isValidUrl(value as string)) {
                         await upsertCityRedirect(c.env, link.id, cityName, value as string);
+                        cityRules.push({ city_name: cityName.toLowerCase(), destination_url: value as string });
                     } else if ((osType === 'android' || osType === 'ios') && isValidUrl(value as string)) {
                         await upsertOsRedirect(c.env, link.id, osType, value as string);
+                        osRules[osType] = value as string;
                     }
                 }
 
-                // Fetch redirects and cache the link for optimal redirect performance
-                const [geoRedirects, deviceRedirects, cityRedirects, osRedirects] = await Promise.all([
-                    getGeoRedirects(c.env, link.id),
-                    getDeviceRedirects(c.env, link.id),
-                    getCityRedirects(c.env, link.id),
-                    getOsRedirects(c.env, link.id)
-                ]);
+                // Build the cache object directly from the rules just upserted (P5) — no
+                // re-SELECT of the redirect tables. Empty groups collapse to undefined.
+                const hasGeo = Object.keys(geoRules).length > 0;
+                const hasDevice = Object.keys(deviceRules).length > 0;
+                const hasCity = cityRules.length > 0;
+                const hasOs = Object.keys(osRules).length > 0;
 
                 const cachedLink = {
                     destination_url: link.destination_url,
@@ -379,29 +430,10 @@ importRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links')
                     expires_at: link.expires_at,
                     password_hash: link.password_hash,
                     link_id: link.id,
-                    geo_redirects:
-                        geoRedirects.length > 0
-                            ? Object.fromEntries(geoRedirects.map((r) => [r.country_code, r.destination_url]))
-                            : undefined,
-                    device_redirects:
-                        deviceRedirects.length > 0
-                            ? {
-                                desktop: deviceRedirects.find((r) => r.device_type === 'desktop')?.destination_url,
-                                mobile: deviceRedirects.find((r) => r.device_type === 'mobile')?.destination_url,
-                                tablet: deviceRedirects.find((r) => r.device_type === 'tablet')?.destination_url,
-                            }
-                            : undefined,
-                    city_redirects:
-                        cityRedirects.length > 0
-                            ? cityRedirects.map((r) => ({ city_name: r.city_name, destination_url: r.destination_url }))
-                            : undefined,
-                    os_redirects:
-                        osRedirects.length > 0
-                            ? {
-                                android: osRedirects.find((r) => r.os === 'android')?.destination_url,
-                                ios: osRedirects.find((r) => r.os === 'ios')?.destination_url,
-                            }
-                            : undefined,
+                    geo_redirects: hasGeo ? geoRules : undefined,
+                    device_redirects: hasDevice ? deviceRules : undefined,
+                    city_redirects: hasCity ? cityRules : undefined,
+                    os_redirects: hasOs ? osRules : undefined,
                     route: link.metadata ? (() => {
                         try { return JSON.parse(link.metadata).route; } catch { return undefined; }
                     })() : undefined,
@@ -449,40 +481,86 @@ importRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links')
     }
 });
 
-// Helper to parse CSV (simple implementation)
+// Parse CSV into an array of row objects keyed by (lower-cased) header name.
+//
+// A proper state machine over the WHOLE text, so it correctly handles:
+//   - quoted fields containing the delimiter and/or newlines,
+//   - doubled quotes ("") inside a quoted field un-escaped to a single ",
+//   - CRLF / LF / lone-CR line endings.
+// Header names are lower-cased so the auto-detect lookups (row['url'], row['slug'], …)
+// work regardless of the CSV's header casing (URL,Slug,Title).
+//
+// NOTE: the `if (value)` guard below intentionally keeps a "0" cell (a truthy string);
+// only genuinely empty cells are dropped.
 function parseCSV(text: string, delimiter: string): Record<string, string>[] {
-    const lines = text.split(/\r?\n/);
-    if (lines.length < 2) return [];
+    const records: string[][] = [];
+    let record: string[] = [];
+    let field = '';
+    let inQuotes = false;
+    const len = text.length;
 
-    const headers = lines[0].split(delimiter).map(h => h.trim().replace(/^"|"$/g, ''));
-    const result = [];
+    const endField = () => {
+        record.push(field);
+        field = '';
+    };
+    const endRecord = () => {
+        endField();
+        records.push(record);
+        record = [];
+    };
 
-    for (let i = 1; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (!line) continue;
+    for (let i = 0; i < len; i++) {
+        const char = text[i];
 
-        // Handle quotes
-        const values = [];
-        let inQuote = false;
-        let currentValue = '';
-
-        for (let j = 0; j < line.length; j++) {
-            const char = line[j];
+        if (inQuotes) {
             if (char === '"') {
-                inQuote = !inQuote;
-            } else if (char === delimiter && !inQuote) {
-                values.push(currentValue);
-                currentValue = '';
+                if (text[i + 1] === '"') {
+                    // Escaped quote: consume both, emit one literal quote.
+                    field += '"';
+                    i++;
+                } else {
+                    inQuotes = false;
+                }
             } else {
-                currentValue += char;
+                field += char;
             }
+            continue;
         }
-        values.push(currentValue);
+
+        if (char === '"') {
+            inQuotes = true;
+        } else if (char === delimiter) {
+            endField();
+        } else if (char === '\r') {
+            endRecord();
+            if (text[i + 1] === '\n') i++; // swallow the LF of a CRLF pair
+        } else if (char === '\n') {
+            endRecord();
+        } else {
+            field += char;
+        }
+    }
+
+    // Flush the trailing field/record when the text doesn't end with a newline.
+    if (field.length > 0 || record.length > 0) {
+        endRecord();
+    }
+
+    if (records.length === 0) return [];
+
+    const headers = records[0].map(h => h.trim().toLowerCase());
+    const result: Record<string, string>[] = [];
+
+    for (let r = 1; r < records.length; r++) {
+        const values = records[r];
+        // Skip a blank line (parses to a single empty field).
+        if (values.length === 1 && values[0].trim() === '') continue;
 
         const row: Record<string, string> = {};
         for (let j = 0; j < headers.length; j++) {
-            if (values[j]) {
-                row[headers[j]] = values[j].trim().replace(/^"|"$/g, '').replace(/""/g, '"');
+            const value = values[j];
+            if (value) {
+                row[headers[j]] = value.trim();
             }
         }
         result.push(row);
@@ -490,5 +568,7 @@ function parseCSV(text: string, delimiter: string): Record<string, string>[] {
 
     return result;
 }
+
+export { parseCSV };
 
 export { importRouter };

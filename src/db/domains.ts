@@ -330,23 +330,52 @@ export async function getDomainByRoutingPath(env: Env, domainName: string, path:
   // Normalize path to handle edge cases
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
 
+  // Build the flat list of candidate routes across all domains, then match
+  // longest-prefix-first so a more specific route (e.g. '/go/*') wins over a
+  // catch-all ('/*') regardless of domain/route ordering.
+  const candidates: { domain: Domain; route: string; prefix: string }[] = [];
   for (const domain of domains) {
     // Enrich domain to get routes array
     const enrichedDomain = enrichDomain(domain);
     const routesToCheck = enrichedDomain.routes || [domain.routing_path];
 
-    // Check each route
     for (const route of routesToCheck) {
-      // Remove wildcard and trailing slash for matching
-      const routingPath = route.replace(/\*/g, '').replace(/\/$/, '');
-      const normalizedRoutingPath = routingPath.startsWith('/') ? routingPath : `/${routingPath}`;
+      candidates.push({ domain: enrichedDomain, route, prefix: normalizeRoutePrefix(route) });
+    }
+  }
 
-      // Check if path matches routing path
-      if (normalizedPath.startsWith(normalizedRoutingPath) || normalizedPath === normalizedRoutingPath) {
-        return { domain: enrichedDomain, matchedRoute: route };
-      }
+  // Longest prefix first; the root catch-all ('' / '/') has length 0 and sorts last.
+  candidates.sort((a, b) => routePrefixLength(b.prefix) - routePrefixLength(a.prefix));
+
+  for (const candidate of candidates) {
+    if (matchesRoutePrefix(normalizedPath, candidate.prefix)) {
+      return { domain: candidate.domain, matchedRoute: candidate.route };
     }
   }
 
   return null;
+}
+
+/**
+ * Normalize a route pattern (e.g. '/go/*') into a leading-slash prefix ('/go')
+ * used for boundary matching. A root catch-all ('/*' or '/') normalizes to '/'.
+ */
+export function normalizeRoutePrefix(route: string): string {
+  const routingPath = route.replace(/\*/g, '').replace(/\/$/, '');
+  return routingPath.startsWith('/') ? routingPath : `/${routingPath}`;
+}
+
+/** Effective prefix length; a root catch-all ('' or '/') counts as 0 so it sorts last. */
+function routePrefixLength(prefix: string): number {
+  return prefix === '' || prefix === '/' ? 0 : prefix.length;
+}
+
+/**
+ * Match a normalized request path against a normalized route prefix, requiring a
+ * path-segment boundary so '/go' matches '/go' and '/go/abc' but NOT '/gopher'.
+ * A root catch-all ('' or '/') matches every path.
+ */
+export function matchesRoutePrefix(normalizedPath: string, prefix: string): boolean {
+  if (prefix === '' || prefix === '/') return true; // root catch-all
+  return normalizedPath === prefix || normalizedPath.startsWith(prefix + '/');
 }

@@ -96,9 +96,10 @@ domainsRouter.post('/', authMiddleware, requireRole(['admin', 'owner']), validat
         message: 'Domain already exists'
       });
     }
-    // Convert other errors to HTTPException with descriptive message
+    // Keep internal error details in logs only; return a generic message to clients
+    // (HTTPException messages are passed verbatim to the client by errorHandler).
     throw new HTTPException(500, {
-      message: error instanceof Error ? error.message : 'Failed to create domain'
+      message: 'Failed to create domain'
     });
   }
 });
@@ -155,7 +156,9 @@ domainsRouter.put('/:id', authMiddleware, requireDomainAccessFromParam('edit'), 
   return c.json({ success: true, data: domain });
 });
 
-// Toggle domain status (admin only - activate/deactivate)
+// Deactivate domain (admin only). DELETE is deactivate-only and idempotent:
+// repeating it always leaves the domain 'inactive' and still returns success.
+// Re-activation is done via PUT /domains/:id with { status: 'active' }.
 domainsRouter.delete('/:id', authMiddleware, requireDomainAccessFromParam('delete'), async (c) => {
   const id = c.req.param('id');
   const hardDelete = c.req.query('hard') === 'true';
@@ -166,16 +169,17 @@ domainsRouter.delete('/:id', authMiddleware, requireDomainAccessFromParam('delet
   }
 
   if (hardDelete) {
-    // In production, you might want to add a proper delete function
-    throw new HTTPException(400, { message: 'Hard delete not implemented' });
+    // FOLLOW-UP: hard delete requires cascading removal of dependent links/analytics
+    // rows (see CX5). Not implemented yet — return 501 Not Implemented.
+    throw new HTTPException(501, { message: 'Hard delete not implemented' });
   }
 
-  // Toggle status: active -> inactive, inactive -> active
-  const newStatus = domain.status === 'active' ? 'inactive' : 'active';
-  await updateDomain(c.env, id, { status: newStatus });
+  // Deactivate-only (idempotent). If already inactive this is a no-op that still succeeds.
+  if (domain.status !== 'inactive') {
+    await updateDomain(c.env, id, { status: 'inactive' });
+  }
 
-  const action = newStatus === 'active' ? 'activated' : 'deactivated';
-  return c.json({ success: true, message: `Domain ${action}`, data: { status: newStatus } });
+  return c.json({ success: true, message: 'Domain deactivated', data: { status: 'inactive' } });
 });
 
 export { domainsRouter };

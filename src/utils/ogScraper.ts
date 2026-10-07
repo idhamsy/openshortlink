@@ -51,6 +51,80 @@ function decodeEntities(value: string): string {
  * internal services, add post-resolution IP validation (resolve host -> reject private
  * IPs) before the fetch in fetchOgTags().
  */
+/**
+ * Parse a single dotted part per inet_aton rules: 0x.. = hex, 0.. = octal, else decimal.
+ * Returns null for anything that is not a valid numeric part.
+ */
+function parseNumericPart(part: string): number | null {
+  if (part === '') return null;
+  let value: number;
+  if (/^0x[0-9a-f]+$/i.test(part)) {
+    value = parseInt(part.slice(2), 16);
+  } else if (/^0[0-7]+$/.test(part)) {
+    value = parseInt(part, 8);
+  } else if (/^[0-9]+$/.test(part)) {
+    value = parseInt(part, 10);
+  } else {
+    return null;
+  }
+  return Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+/**
+ * Parse an IPv4 host in ANY encoding a resolver would accept — dotted-decimal,
+ * dotted-octal ("0177.0.0.1"), dotted-hex ("0x7f.0.0.1"), or a single integer/hex
+ * value ("2130706433", "0x7f000001") — into its four octets. Returns null if the
+ * host is not an IPv4 literal (e.g. a normal DNS name), mirroring inet_aton's
+ * 1-to-4-part addressing.
+ */
+export function parseIpv4Host(host: string): [number, number, number, number] | null {
+  const parts = host.split('.');
+  if (parts.length < 1 || parts.length > 4) return null;
+
+  const nums: number[] = [];
+  for (const p of parts) {
+    const n = parseNumericPart(p);
+    if (n === null) return null;
+    nums.push(n);
+  }
+
+  let a: number, b: number, c: number, d: number;
+  switch (nums.length) {
+    case 1: {
+      const v = nums[0];
+      if (v > 0xffffffff) return null;
+      a = (v >>> 24) & 0xff; b = (v >>> 16) & 0xff; c = (v >>> 8) & 0xff; d = v & 0xff;
+      break;
+    }
+    case 2: {
+      if (nums[0] > 0xff || nums[1] > 0xffffff) return null;
+      a = nums[0]; b = (nums[1] >>> 16) & 0xff; c = (nums[1] >>> 8) & 0xff; d = nums[1] & 0xff;
+      break;
+    }
+    case 3: {
+      if (nums[0] > 0xff || nums[1] > 0xff || nums[2] > 0xffff) return null;
+      a = nums[0]; b = nums[1]; c = (nums[2] >>> 8) & 0xff; d = nums[2] & 0xff;
+      break;
+    }
+    default: { // 4 parts
+      if (nums.some(n => n > 0xff)) return null;
+      [a, b, c, d] = nums;
+      break;
+    }
+  }
+  return [a, b, c, d];
+}
+
+/** True if the given IPv4 octets fall in a loopback/private/link-local/unspecified range. */
+export function isPrivateIpv4(octets: [number, number, number, number]): boolean {
+  const [a, b] = octets;
+  if (a === 127 || a === 10 || a === 0) return true; // loopback, private, unspecified
+  if (a === 169 && b === 254) return true; // link-local (incl. cloud metadata 169.254.169.254)
+  if (a === 192 && b === 168) return true; // private
+  if (a === 172 && b >= 16 && b <= 31) return true; // private
+  return false;
+}
+
 export function isPubliclyFetchableUrl(url: string): boolean {
   if (!isValidUrl(url)) return false;
   let host: string;
@@ -72,14 +146,11 @@ export function isPubliclyFetchableUrl(url: string): boolean {
   if (bare === '::1' || bare === '::') return false;
   if (bare.startsWith('fc') || bare.startsWith('fd') || bare.startsWith('fe80')) return false;
 
-  // IPv4 literal checks.
-  const m = bare.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
-  if (m) {
-    const [a, b] = [Number(m[1]), Number(m[2])];
-    if (a === 127 || a === 10 || a === 0) return false; // loopback, private, unspecified
-    if (a === 169 && b === 254) return false; // link-local (incl. cloud metadata 169.254.169.254)
-    if (a === 192 && b === 168) return false; // private
-    if (a === 172 && b >= 16 && b <= 31) return false; // private
+  // IPv4 literal checks — normalize ANY encoding (decimal/octal/hex/integer) first,
+  // so http://2130706433, http://0177.0.0.1, http://0x7f.0.0.1 are all caught.
+  const octets = parseIpv4Host(bare);
+  if (octets && isPrivateIpv4(octets)) {
+    return false;
   }
 
   return true;

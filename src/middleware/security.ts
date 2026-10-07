@@ -38,8 +38,12 @@ export const securityHeaders = createMiddleware<{ Bindings: Env; Variables: Vari
     // Content Security Policy
     // We use a nonce for scripts to allow inline scripts in dashboard.ts while blocking others.
     // We still allow 'unsafe-inline' for styles because of the heavy use of style attributes.
-    c.header(
-        'Content-Security-Policy',
-        `default-src 'self'; script-src 'self' 'nonce-${nonce}' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; connect-src 'self' https://cdn.jsdelivr.net;`
-    );
+    // A response that already carries its own CSP (e.g. the pixel interstitial, which must
+    // load ad-platform scripts) keeps it — this default would otherwise overwrite it.
+    if (!c.res.headers.has('Content-Security-Policy')) {
+        c.header(
+            'Content-Security-Policy',
+            `default-src 'self'; script-src 'self' 'nonce-${nonce}' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; connect-src 'self' https://cdn.jsdelivr.net;`
+        );
+    }
 });

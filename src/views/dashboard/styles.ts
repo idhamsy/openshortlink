@@ -95,6 +95,10 @@ export const dashboardCss = `
 @media (max-width: 768px) {
   .col-span-8, .col-span-6, .col-span-4, .col-span-3 { grid-column: span 12; }
   .analytics-grid { gap: 1rem; }
+  /* Make the horizontally-scrolling data table more usable on phones:
+     tighter cells and a smaller min-width so less side-scrolling is needed */
+  .data-table { min-width: 600px; font-size: 0.8125rem; }
+  .data-table th, .data-table td { padding: 0.625rem 0.75rem; }
 }
 
 /* Pagination Styles */

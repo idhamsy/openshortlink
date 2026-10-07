@@ -5,13 +5,32 @@
  * See LICENSE file or https://www.gnu.org/licenses/agpl-3.0.txt
  */
 
+/**
+ * Clamp a requested page into the valid [1, totalPages] range.
+ * Mirrors the inline clamp used in paginationJs below (kept in sync for testability).
+ */
+export function clampPage(page: number, totalPages: number): number {
+  return Math.min(Math.max(page, 1), totalPages);
+}
+
+/** Whether the Previous control should be disabled for the given (possibly out-of-range) page. */
+export function isPrevDisabled(page: number, totalPages: number): boolean {
+  return clampPage(page, totalPages) <= 1;
+}
+
+/** Whether the Next control should be disabled for the given (possibly out-of-range) page. */
+export function isNextDisabled(page: number, totalPages: number): boolean {
+  return clampPage(page, totalPages) >= totalPages;
+}
+
 export const paginationJs = `function renderPagination(containerId, state, total, onPageChangeFunc) {
   const container = document.getElementById(containerId);
   if (!container) return;
-  
+
   const totalPages = Math.ceil(total / state.perPage);
-  const currentPage = state.page;
-  
+  // Clamp into [1, totalPages] so out-of-range pages (0 or > total) render correctly
+  const currentPage = Math.min(Math.max(state.page, 1), totalPages);
+
   if (totalPages <= 1) {
     container.innerHTML = '';
     return;
@@ -24,7 +43,7 @@ export const paginationJs = `function renderPagination(containerId, state, total
   const prevBtn = document.createElement('button');
   prevBtn.className = 'pagination-btn';
   prevBtn.textContent = 'Previous';
-  prevBtn.disabled = currentPage === 1;
+  prevBtn.disabled = currentPage <= 1;
   if (currentPage > 1) {
     prevBtn.addEventListener('click', () => onPageChangeFunc(currentPage - 1));
   }
@@ -78,7 +97,7 @@ export const paginationJs = `function renderPagination(containerId, state, total
   const nextBtn = document.createElement('button');
   nextBtn.className = 'pagination-btn';
   nextBtn.textContent = 'Next';
-  nextBtn.disabled = currentPage === totalPages;
+  nextBtn.disabled = currentPage >= totalPages;
   if (currentPage < totalPages) {
     nextBtn.addEventListener('click', () => onPageChangeFunc(currentPage + 1));
   }

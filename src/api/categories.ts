@@ -88,6 +88,7 @@ categoriesRouter.get('/:id', authMiddleware, async (c) => {
 // createRateLimit({ window: 60, max: 20, key: (c) => `category:create:${c.req.header('CF-Connecting-IP')}` })
 categoriesRouter.post('/', authMiddleware, requirePermission('manage_categories'), validateJson(createCategorySchema), async (c) => {
   const validated = c.req.valid('json');
+  const user = c.get('user') as User;
 
   // Validate domain exists if domain_id is provided
   if (validated.domain_id) {
@@ -97,22 +98,43 @@ categoriesRouter.post('/', authMiddleware, requirePermission('manage_categories'
     }
 
     // Check domain access
-    const user = c.get('user') as User;
     const hasAccess = await canAccessDomain(c.env, user, validated.domain_id);
     if (!hasAccess) {
       throw new HTTPException(403, { message: 'Access denied. You do not have access to this domain.' });
     }
+  } else {
+    // Global (null-domain) categories are shared by every tenant — restrict creation to admin/owner.
+    if (user.role !== 'admin' && user.role !== 'owner') {
+      throw new HTTPException(403, { message: 'Only administrators can create global categories.' });
+    }
   }
 
-  // Check if category already exists for this domain
-  const existingCategories = await listCategories(c.env, { domainId: validated.domain_id });
-  if (existingCategories.some(c => c.name.toLowerCase() === validated.name.toLowerCase())) {
+  // Duplicate check scoped to the SAME scope only: global names conflict only with
+  // other globals; domain names only with categories in the same domain. Passing no
+  // domainId to listCategories returns ALL categories, so filter to globals ourselves.
+  let scopeCategories = await listCategories(c.env, { domainId: validated.domain_id });
+  if (!validated.domain_id) {
+    scopeCategories = scopeCategories.filter(cat => !cat.domain_id);
+  }
+  if (scopeCategories.some(cat => cat.name.toLowerCase() === validated.name.toLowerCase())) {
     throw new HTTPException(409, { message: 'Category already exists' });
   }
 
-  const category = await createCategory(c.env, validated);
-
-  return c.json({ success: true, data: category }, 201);
+  try {
+    const category = await createCategory(c.env, validated);
+    return c.json({ success: true, data: category }, 201);
+  } catch (error) {
+    if (error instanceof HTTPException) {
+      throw error;
+    }
+    // Translate a UNIQUE-constraint violation (check-then-insert race) into a clean 409.
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    if (errorMsg.includes('UNIQUE constraint failed')) {
+      throw new HTTPException(409, { message: 'A category with this name already exists' });
+    }
+    console.error('[CATEGORY CREATE ERROR]', error);
+    throw new HTTPException(500, { message: 'Failed to create category' });
+  }
 });
 
 // Update category
@@ -132,6 +154,12 @@ categoriesRouter.put('/:id', authMiddleware, requirePermission('manage_categorie
       const hasAccess = await canAccessDomain(c.env, user, existingCategory.domain_id);
       if (!hasAccess) {
         throw new HTTPException(403, { message: 'Access denied. You do not have access to this domain.' });
+      }
+    } else {
+      // Global (null-domain) categories are shared by every tenant — restrict mutation to admin/owner.
+      const user = c.get('user') as User;
+      if (user.role !== 'admin' && user.role !== 'owner') {
+        throw new HTTPException(403, { message: 'Only administrators can modify global categories.' });
       }
     }
 
@@ -167,6 +195,12 @@ categoriesRouter.delete('/:id', authMiddleware, requirePermission('manage_catego
     const hasAccess = await canAccessDomain(c.env, user, existingCategory.domain_id);
     if (!hasAccess) {
       throw new HTTPException(403, { message: 'Access denied. You do not have access to this domain.' });
+    }
+  } else {
+    // Global (null-domain) categories are shared by every tenant — restrict deletion to admin/owner.
+    const user = c.get('user') as User;
+    if (user.role !== 'admin' && user.role !== 'owner') {
+      throw new HTTPException(403, { message: 'Only administrators can delete global categories.' });
     }
   }
 

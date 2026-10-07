@@ -20,6 +20,7 @@ import {
   countLinks,
   checkSlugExists,
   listLinksWithTagFilter,
+  SlugConflictError,
 } from '../db/links';
 import { getLinkTags, setLinkTags, getLinksTagsBatch } from '../db/tags';
 import { getCategoryById, getLinksCategoriesBatch } from '../db/categories';
@@ -62,6 +63,44 @@ import { createLinkSchema, updateLinkSchema, ogFetchSchema } from '../schemas';
 const linksRouter = new Hono<{ Bindings: Env }>();
 
 // Schemas imported from ../schemas
+
+/**
+ * Derive the accessible-domain constraint for the status-monitor read endpoints
+ * (which are session-only via authMiddleware), mirroring GET /links.
+ *
+ * Returns:
+ *  - `undefined` for global-access users → no domain constraint (see all).
+ *  - a (possibly empty) array of domain IDs otherwise → constrain queries to these.
+ *
+ * If the caller supplies an explicit `domain_id` they cannot access, throws 403.
+ */
+async function resolveAccessibleDomainConstraint(
+  c: any,
+  explicitDomainId?: string
+): Promise<string[] | undefined> {
+  const user = c.get?.('user') as User | undefined;
+
+  // authMiddleware guarantees a user; if somehow absent, deny by default.
+  if (!user) {
+    return [];
+  }
+
+  const hasGlobalAccess = user.global_access || user.role === 'admin' || user.role === 'owner';
+
+  // Reject an explicit domain_id the user cannot access.
+  if (explicitDomainId && !hasGlobalAccess) {
+    const ok = await canAccessDomain(c.env, user, explicitDomainId);
+    if (!ok) {
+      throw new HTTPException(403, { message: 'Access denied. You do not have access to this domain.' });
+    }
+  }
+
+  if (hasGlobalAccess) {
+    return undefined;
+  }
+
+  return ((user as any).accessible_domain_ids as string[] | undefined) ?? [];
+}
 
 // List links
 linksRouter.get('/', authOrApiKeyMiddleware, async (c) => {
@@ -303,8 +342,12 @@ linksRouter.get('/grouped-by-destination', authMiddleware, async (c) => {
     const offset = offsetParam ? Math.max(parseInt(offsetParam) || 0, 0) : 0;
     const statusCode = statusCodeParam ? parseInt(statusCodeParam) : undefined;
 
+    // Constrain to the caller's accessible domains (reject inaccessible explicit domain_id).
+    const accessibleDomainIds = await resolveAccessibleDomainConstraint(c, domainId || undefined);
+
     const { getLinksGroupedByDestination } = await import('../db/links');
     const { destinations, total } = await getLinksGroupedByDestination(c.env, {
+      domainIds: accessibleDomainIds,
       domainId: domainId || undefined,
       statusCode,
       search: search || undefined,
@@ -324,6 +367,10 @@ linksRouter.get('/grouped-by-destination', authMiddleware, async (c) => {
       },
     });
   } catch (error: any) {
+    // Preserve intended client errors (e.g. 403 for an inaccessible domain_id).
+    if (error instanceof HTTPException) {
+      throw error;
+    }
     console.error('Error in grouped-by-destination endpoint:', error);
     throw new HTTPException(500, {
       message: error.message || 'Failed to fetch grouped destinations'
@@ -357,8 +404,12 @@ linksRouter.get('/by-destination', authMiddleware, async (c) => {
   }
   const offset = offsetParam ? Math.max(parseInt(offsetParam) || 0, 0) : 0;
 
+  // Constrain to the caller's accessible domains (tenant isolation).
+  const accessibleDomainIds = await resolveAccessibleDomainConstraint(c);
+
   const { getLinksByDestinationUrl } = await import('../db/links');
   const links = await getLinksByDestinationUrl(c.env, normalizedUrl, {
+    domainIds: accessibleDomainIds,
     limit,
     offset,
   });
@@ -571,21 +622,30 @@ linksRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links'),
     metadata = JSON.stringify(metadataObj);
   }
 
-  // Create link
-  const link = await createLink(c.env, {
-    domain_id: validated.domain_id,
-    slug,
-    destination_url: destinationUrl,
-    title,
-    description,
-    redirect_code: validated.redirect_code,
-    status: 'active',
-    expires_at: validated.expires_at,
-    metadata,
-    category_id: validated.category_id, // Use dedicated column
-    click_count: 0,
-    unique_visitors: 0,
-  });
+  // Create link. Translate a UNIQUE(domain_id, slug) race (check-then-insert window)
+  // into a clean 409 Conflict instead of a raw 500.
+  let link: Link;
+  try {
+    link = await createLink(c.env, {
+      domain_id: validated.domain_id,
+      slug,
+      destination_url: destinationUrl,
+      title,
+      description,
+      redirect_code: validated.redirect_code,
+      status: 'active',
+      expires_at: validated.expires_at,
+      metadata,
+      category_id: validated.category_id, // Use dedicated column
+      click_count: 0,
+      unique_visitors: 0,
+    });
+  } catch (error) {
+    if (error instanceof SlugConflictError) {
+      throw new HTTPException(409, { message: 'Slug already exists' });
+    }
+    throw error;
+  }
 
   // Set tags if provided
   if (validated.tags && validated.tags.length > 0) {
@@ -780,11 +840,18 @@ linksRouter.put('/:id', authOrApiKeyMiddleware, requireLinkAccess('edit'), valid
     category = await getCategoryById(c.env, updatedLink.category_id);
   }
 
-  // Rebuild cache with updated data
+  // Rebuild cache with updated data. If the link is no longer active
+  // (archived/expired/deleted/inactive), DELETE the cache entry instead of
+  // re-caching an active-looking one — otherwise a disabled link keeps
+  // redirecting from the cache-hit path forever.
   const domain = await getDomainById(c.env, existingLink.domain_id);
   if (domain) {
-    const cachedLink = await buildCachedLink(c.env, updatedLink, domain);
-    await setCachedLink(c.env, domain.domain_name, existingLink.slug, cachedLink);
+    if (updatedLink.status !== 'active') {
+      await deleteCachedLink(c.env, domain.domain_name, existingLink.slug);
+    } else {
+      const cachedLink = await buildCachedLink(c.env, updatedLink, domain);
+      await setCachedLink(c.env, domain.domain_name, existingLink.slug, cachedLink);
+    }
   }
 
   // Fetch fresh data for response
@@ -859,8 +926,9 @@ linksRouter.post('/bulk', authOrApiKeyMiddleware, requirePermission('edit_links'
     throw new HTTPException(400, { message: 'link_ids array required' });
   }
 
-  // Check API key domain scoping
+  // Check API key domain scoping / session-user ownership
   const apiKey = (c as any).get?.('apiKey') as ApiKeyContext | undefined;
+  const user = (c as any).get?.('user') as User | undefined;
 
   const results = [];
 
@@ -868,6 +936,16 @@ linksRouter.post('/bulk', authOrApiKeyMiddleware, requirePermission('edit_links'
     for (const id of link_ids) {
       const link = await getLinkById(c.env, id);
       if (link) {
+        // Enforce ownership for session users (mirror requireLinkAccess on single-item routes).
+        // Without this, a tenant could delete any other tenant's link by ID.
+        if (user && !apiKey) {
+          const hasAccess = await canAccessDomain(c.env, user, link.domain_id);
+          if (!hasAccess) {
+            results.push({ id, success: false, error: 'Access denied. You do not have access to this domain.' });
+            continue;
+          }
+        }
+
         // Check API key domain scoping
         if (apiKey && apiKey.domain_ids && apiKey.domain_ids.length > 0) {
           if (!apiKey.domain_ids.includes(link.domain_id)) {
@@ -894,6 +972,16 @@ linksRouter.post('/bulk', authOrApiKeyMiddleware, requirePermission('edit_links'
     for (const id of link_ids) {
       const link = await getLinkById(c.env, id);
       if (link) {
+        // Enforce ownership for session users (mirror requireLinkAccess on single-item routes).
+        // Without this, a tenant could repoint any other tenant's link by ID.
+        if (user && !apiKey) {
+          const hasAccess = await canAccessDomain(c.env, user, link.domain_id);
+          if (!hasAccess) {
+            results.push({ id, success: false, error: 'Access denied. You do not have access to this domain.' });
+            continue;
+          }
+        }
+
         // Check API key domain scoping
         if (apiKey && apiKey.domain_ids && apiKey.domain_ids.length > 0) {
           if (!apiKey.domain_ids.includes(link.domain_id)) {
@@ -902,17 +990,15 @@ linksRouter.post('/bulk', authOrApiKeyMiddleware, requirePermission('edit_links'
           }
         }
 
-        // Prepare metadata updates
+        // Prepare metadata updates. `route` is handled independently of metadata/category
+        // so a route-only bulk update is still persisted. `category_id` is written to its
+        // dedicated column (below), NOT into metadata, so it shows up in list/filter queries.
         let finalMetadata: string | undefined = undefined;
-        if (metadataObj !== undefined || category_id !== undefined) {
+        if (metadataObj !== undefined || route !== undefined) {
           const currentMetadata = link.metadata ? JSON.parse(link.metadata) : {};
           const updatedMetadata = metadataObj ? { ...currentMetadata, ...metadataObj } : { ...currentMetadata };
-          if (category_id !== undefined) {
-            updatedMetadata.category_id = category_id;
-          }
           if (route !== undefined) {
-            // We should validate route against domain here, but for bulk ops we might skip strict validation or fail?
-            // Let's validate
+            // Validate the route against the link's domain, matching the single-item PUT path.
             const domain = await getDomainById(c.env, link.domain_id);
             if (domain && domain.routes && domain.routes.includes(route)) {
               updatedMetadata.route = route;
@@ -924,9 +1010,15 @@ linksRouter.post('/bulk', authOrApiKeyMiddleware, requirePermission('edit_links'
           finalMetadata = JSON.stringify(updatedMetadata);
         }
 
-        // Update link fields (excluding tags, category_id, metadata, and redirects which are handled separately)
-        if (Object.keys(linkUpdates).length > 0 || finalMetadata !== undefined) {
-          await updateLink(c.env, id, { ...linkUpdates, ...(finalMetadata !== undefined ? { metadata: finalMetadata } : {}) });
+        // Build column updates: plain link fields plus the dedicated category_id column.
+        const columnUpdates: Parameters<typeof updateLink>[2] = { ...linkUpdates };
+        if (category_id !== undefined) {
+          columnUpdates.category_id = category_id;
+        }
+
+        // Update link fields (excluding tags and redirects which are handled separately)
+        if (Object.keys(columnUpdates).length > 0 || finalMetadata !== undefined) {
+          await updateLink(c.env, id, { ...columnUpdates, ...(finalMetadata !== undefined ? { metadata: finalMetadata } : {}) });
         }
 
         // Handle tags separately if provided
@@ -996,8 +1088,12 @@ linksRouter.get('/status/:statusCode', authMiddleware, async (c) => {
   const limit = limitParam ? Math.min(Math.max(parseInt(limitParam) || 25, 1), 500) : 25;
   const offset = offsetParam ? Math.max(parseInt(offsetParam) || 0, 0) : 0;
 
+  // Constrain to the caller's accessible domains (reject inaccessible explicit domain_id).
+  const accessibleDomainIds = await resolveAccessibleDomainConstraint(c, domainId || undefined);
+
   const { getLinksByStatusCode, getStatusSummary } = await import('../db/links');
   const { links, total } = await getLinksByStatusCode(c.env, statusCode, {
+    domainIds: accessibleDomainIds,
     domainId: domainId || undefined,
     destinationUrl: destinationUrl || undefined,
     limit,
@@ -1005,7 +1101,7 @@ linksRouter.get('/status/:statusCode', authMiddleware, async (c) => {
   });
 
   // Get status summary
-  const statusSummary = await getStatusSummary(c.env, domainId || undefined);
+  const statusSummary = await getStatusSummary(c.env, domainId || undefined, accessibleDomainIds);
 
   return c.json({
     success: true,

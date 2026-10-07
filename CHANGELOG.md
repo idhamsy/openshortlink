@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.10.1] - 2026-10-07
+
+Security release. **All deployments should upgrade.**
+
+### Security
+- **Cross-domain authorization in bulk operations (GHSA-9f2c-cqrr-gcqp):** `POST /links/bulk` now checks, per link, that a session user can access the link's domain (as the single-link routes already did). Previously a user with `edit_links` could update or delete links on domains they had no access to. Reported by @furkan-arslan-sec.
+- **Cross-domain authorization in CSV import:** `POST /links/import` now returns 403 unless the session user can access the target domain, or the API key's `domain_ids` include it.
+- Stored XSS fixes in the audit log and analytics overview; inline event handlers replaced with delegated listeners (CSP-compatible).
+- MFA: rate limit + lockout on verification, a valid code is required to disable MFA, backup codes are hashed, and the MFA secret is encrypted at rest with `SETUP_TOKEN` (when set). **Changing `SETUP_TOKEN` after upgrading makes MFA secrets enrolled afterwards unreadable** — affected users must re-enrol.
+- Sessions are revoked on password change; constant-time setup-token comparison; `/auth/setup-auto` requires `SETUP_TOKEN` and is rate limited; `/auth/token` is disabled in production.
+- SSRF guard rejects encoded IP literals; global tags/categories are admin-only.
+- Password hashes use a versioned format and are upgraded on next login (legacy hashes keep working).
+- A Content-Security-Policy already set on a response is no longer overwritten.
+
+### Fixed
+- Disabled links stop redirecting (including cached entries); bots no longer inflate click counts; tablet user-agent detection; city/country matching uses `request.cf` only (not client-supplied headers).
+- `redirect_code` restricted to 301/302/307/308; route matching respects path-segment boundaries.
+- CSV parser rewrite; import refuses inactive domains and redirect loops.
+- Analytics D1 aggregation fixes (cron boundary, source split, catch-up, sample-adjusted counts, dedup); hard-delete cascades to analytics rows.
+
+### Upgrade notes
+- New DB migration `0022_normalize_analytics_null_dimensions.sql` (data repair only) — run `npm run db:migrate` (included in `npm run deploy`).
+- Optional new variable `ALLOWED_ORIGINS` (comma-separated CORS allowlist); unset keeps the previous behaviour.
+
+---
+
 ## [0.10.0] - 2026-06-22
 
 ### Added

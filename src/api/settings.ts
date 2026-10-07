@@ -186,8 +186,10 @@ settingsRouter.put('/analytics-thresholds', authMiddleware, validateJson(analyti
     if (error instanceof Error && error.message.includes('UNIQUE constraint')) {
       throw new HTTPException(409, { message: 'Duplicate settings entry' });
     }
-    throw new HTTPException(500, { 
-      message: error instanceof Error ? error.message : 'Failed to update analytics thresholds' 
+    // Keep internal error details in logs only; return a generic message to clients
+    // (HTTPException messages are passed verbatim to the client by errorHandler).
+    throw new HTTPException(500, {
+      message: 'Failed to update analytics thresholds'
     });
   }
 });

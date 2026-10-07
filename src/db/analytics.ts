@@ -951,155 +951,16 @@ export async function upsertCustomParamAnalytics(
     .run();
 }
 
-// Real-time aggregation functions (increment instead of replace)
-
 /**
- * Increment daily analytics in real-time (for dual-write)
- * Note: Unique visitors tracking is approximate - exact tracking would require
- * a separate IP tracking table. This increments unique_visitors conservatively.
+ * Get the most recent date already aggregated into D1 (MAX(date) in
+ * analytics_daily), or null if nothing has been aggregated yet. Used by the
+ * daily cron to catch up on any dates missed since the last successful run.
  */
-export async function incrementDailyAnalytics(
-  env: Env,
-  linkId: string,
-  date: string,
-  ipAddress: string
-): Promise<void> {
-  const id = generateId('analytics_daily');
-  const now = Date.now();
-
-  // Use atomic increment for clicks
-  // For unique visitors: increment by 1 on insert, keep existing value on update
-  // (exact unique visitor tracking would require checking if IP was seen before)
-  await env.DB.prepare(
-    `INSERT INTO analytics_daily (id, link_id, date, clicks, unique_visitors, created_at)
-     VALUES (?, ?, ?, 1, 1, ?)
-     ON CONFLICT(link_id, date) DO UPDATE SET
-       clicks = clicks + 1`
-  )
-    .bind(id, linkId, date, now)
-    .run();
-}
-
-/**
- * Increment geographic analytics in real-time
- */
-export async function incrementGeoAnalytics(
-  env: Env,
-  linkId: string,
-  country: string | null,
-  city: string | null,
-  date: string
-): Promise<void> {
-  const id = generateId('analytics_geo');
-  const now = Date.now();
-
-  await env.DB.prepare(
-    `INSERT INTO analytics_geo (id, link_id, country, city, date, clicks, created_at)
-     VALUES (?, ?, ?, ?, ?, 1, ?)
-     ON CONFLICT(link_id, country, city, date) DO UPDATE SET
-       clicks = clicks + 1`
-  )
-    .bind(id, linkId, country || null, city || null, date, now)
-    .run();
-}
-
-/**
- * Increment referrer analytics in real-time
- */
-export async function incrementReferrerAnalytics(
-  env: Env,
-  linkId: string,
-  referrerDomain: string | null,
-  date: string
-): Promise<void> {
-  const id = generateId('analytics_referrer');
-  const now = Date.now();
-
-  await env.DB.prepare(
-    `INSERT INTO analytics_referrers (id, link_id, referrer_domain, date, clicks, created_at)
-     VALUES (?, ?, ?, ?, 1, ?)
-     ON CONFLICT(link_id, referrer_domain, date) DO UPDATE SET
-       clicks = clicks + 1`
-  )
-    .bind(id, linkId, referrerDomain || null, date, now)
-    .run();
-}
-
-/**
- * Increment device analytics in real-time
- * Note: Unique visitors tracking is approximate
- */
-export async function incrementDeviceAnalytics(
-  env: Env,
-  linkId: string,
-  deviceType: string | null,
-  browser: string | null,
-  os: string | null,
-  date: string,
-  ipAddress: string
-): Promise<void> {
-  const id = generateId('analytics_device');
-  const now = Date.now();
-
-  await env.DB.prepare(
-    `INSERT INTO analytics_devices (id, link_id, device_type, browser, os, date, clicks, unique_visitors, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, 1, 1, ?)
-     ON CONFLICT(link_id, device_type, browser, os, date) DO UPDATE SET
-       clicks = clicks + 1`
-  )
-    .bind(id, linkId, deviceType || null, browser || null, os || null, date, now)
-    .run();
-}
-
-/**
- * Increment UTM analytics in real-time
- * Note: Unique visitors tracking is approximate
- */
-export async function incrementUtmAnalytics(
-  env: Env,
-  linkId: string,
-  utmSource: string | null,
-  utmMedium: string | null,
-  utmCampaign: string | null,
-  date: string,
-  ipAddress: string
-): Promise<void> {
-  const id = generateId('analytics_utm');
-  const now = Date.now();
-
-  await env.DB.prepare(
-    `INSERT INTO analytics_utm (id, link_id, utm_source, utm_medium, utm_campaign, date, clicks, unique_visitors, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, 1, 1, ?)
-     ON CONFLICT(link_id, utm_source, utm_medium, utm_campaign, date) DO UPDATE SET
-       clicks = clicks + 1`
-  )
-    .bind(id, linkId, utmSource || null, utmMedium || null, utmCampaign || null, date, now)
-    .run();
-}
-
-/**
- * Increment custom parameter analytics in real-time
- * Note: Unique visitors tracking is approximate
- */
-export async function incrementCustomParamAnalytics(
-  env: Env,
-  linkId: string,
-  paramName: string,
-  paramValue: string | null,
-  date: string,
-  ipAddress: string
-): Promise<void> {
-  const id = generateId('analytics_custom_param');
-  const now = Date.now();
-
-  await env.DB.prepare(
-    `INSERT INTO analytics_custom_params (id, link_id, param_name, param_value, date, clicks, unique_visitors, created_at)
-     VALUES (?, ?, ?, ?, ?, 1, 1, ?)
-     ON CONFLICT(link_id, param_name, param_value, date) DO UPDATE SET
-       clicks = clicks + 1`
-  )
-    .bind(id, linkId, paramName, paramValue || null, date, now)
-    .run();
+export async function getLastAggregatedDate(env: Env): Promise<string | null> {
+  const result = await env.DB
+    .prepare(`SELECT MAX(date) as max_date FROM analytics_daily`)
+    .first<{ max_date: string | null }>();
+  return result?.max_date ?? null;
 }
 
 /**

@@ -14,6 +14,9 @@ import type {
   GeographyDataPoint,
   ReferrerDataPoint,
 } from './analytics';
+// Static import (no circular dependency: services/analytics.ts does not import this
+// module). Replaces a per-request dynamic `await import('./analytics')`.
+import { extractReferrerDomain, categorizeReferrer } from './analytics';
 
 interface AnalyticsEngineConfig {
   accountId: string;
@@ -123,6 +126,27 @@ export async function testAnalyticsEngineConnection(env: Env): Promise<{ success
 function quoteIdentifier(identifier: string): string {
   // Use double quotes for SQL standard, escape any existing quotes
   return `"${identifier.replace(/"/g, '""')}"`;
+}
+
+/**
+ * Row cap for Analytics Engine queries that GROUP BY the hashed IP (blob9) to
+ * emulate COUNT(DISTINCT). Without a LIMIT the worker would download an
+ * unbounded per-visitor row set (memory/CPU risk); with it we can also detect
+ * truncation. Kept below AE's internal ~10k response cap.
+ */
+const AE_ROW_LIMIT = 10000;
+
+/**
+ * Log a warning when a query returned exactly the row cap, which means results
+ * were likely truncated and the derived counts undercount the real total.
+ */
+function warnIfTruncated(context: string, rowCount: number): void {
+  if (rowCount >= AE_ROW_LIMIT) {
+    console.warn(
+      `[ANALYTICS ENGINE] ${context}: result hit the ${AE_ROW_LIMIT}-row cap — ` +
+      `data was likely truncated and counts may undercount. Narrow the date range or filters.`
+    );
+  }
 }
 
 // ============================================================================
@@ -271,16 +295,18 @@ function buildFilterWhereClause(
     // This prevents incorrect AND logic when both are provided
   } else if (filters.linkIds && filters.linkIds.length > 0) {
   // Link ID filtering (for tag/category filtering)
-    // Only use if <= 100 IDs to avoid truncation (Analytics Engine limitation)
-    // If > 100 IDs and no domainNames, caller should query without filters (all data)
+    // Analytics Engine can only reliably filter on <= 100 IN values.
+    // Silently dropping the filter (as before) would query ALL tenants' data and
+    // misattribute other links' clicks. Callers MUST batch to <= 100 IDs
+    // (see batchLinkIds / *FromEngineBatched); enforce that here.
     if (filters.linkIds.length <= 100) {
       const linkIdList = filters.linkIds.map(id => `'${id.replace(/'/g, "''")}'`).join(', ');
       conditions.push(`blob1 IN (${linkIdList})`);
     } else {
-      // Too many linkIds - don't filter (query all data)
-      // This happens when "all domains" is selected
-      // DEBUG: console.warn('[ANALYTICS ENGINE] Large link ID array (>100), querying all data instead of filtering');
-      // Don't add linkIds filter - query all data
+      throw new Error(
+        `buildFilterWhereClause received ${filters.linkIds.length} linkIds (> 100). ` +
+        `Analytics Engine link-ID filtering must be batched to <= 100 IDs per query.`
+      );
     }
   }
 
@@ -311,18 +337,11 @@ export async function getDailyAnalyticsFromEngineBatched(
   // DEBUG: console.log(`[ANALYTICS ENGINE BATCHED] Batching ${linkIds.length} linkIds into ${batches.length} batches`);
   // DEBUG: console.log(`[ANALYTICS ENGINE BATCHED] Date range: ${startDate} to ${endDate}`);
 
-  const allResults: TimeSeriesDataPoint[] = [];
-  
-  // Query each batch in parallel
-  // Query each batch sequentially to avoid rate limits
-  const batchResults: TimeSeriesDataPoint[][] = [];
-  
-  for (const batch of batches) {
-    // DEBUG: console.log(`[ANALYTICS ENGINE BATCHED] Processing batch for daily analytics...`);
-    const result = await getDailyAnalyticsFromEngine(env, { linkIds: batch }, startDate, endDate);
-    batchResults.push(result);
-  }
-  
+  // Query all batches in parallel (matches geo/referrer/device/utm batched paths)
+  const batchResults: TimeSeriesDataPoint[][] = await Promise.all(
+    batches.map(batch => getDailyAnalyticsFromEngine(env, { linkIds: batch }, startDate, endDate))
+  );
+
   // DEBUG: console.log(`[ANALYTICS ENGINE BATCHED] Batch results:`, batchResults.map((r, i) => ({
   //   batch: i + 1,
   //   dataPoints: r.length,
@@ -691,14 +710,11 @@ export async function getAggregatedSummaryFromEngineBatched(
   const batches = batchLinkIds(linkIds);
   // DEBUG: console.log(`[ANALYTICS ENGINE] Batching ${linkIds.length} linkIds into ${batches.length} batches for summary`);
 
-  // Query each batch sequentially to avoid rate limits
-  const batchResults: { total_clicks: number; total_unique_visitors: number }[] = [];
+  // Query all batches in parallel (matches geo/referrer/device/utm batched paths)
+  const batchResults: { total_clicks: number; total_unique_visitors: number }[] = await Promise.all(
+    batches.map(batch => getAggregatedSummaryFromEngine(env, { linkIds: batch }, startDate, endDate))
+  );
 
-  for (const batch of batches) {
-     const result = await getAggregatedSummaryFromEngine(env, { linkIds: batch }, startDate, endDate);
-     batchResults.push(result);
-  }
-  
   // Merge results
   // For unique visitors, use average across batches (better approximation than max)
   let totalClicks = 0;
@@ -803,16 +819,20 @@ export async function getDailyAnalyticsFromEngine(
   // SECURITY: All inputs validated by validateTimestamp, validateLinkId, validateDomainName. CF Analytics Engine API requires raw SQL.
    // Optimized: Flatten query to avoid subquery issues
    // Group by calculated day number directly
+   // clicks = SUM(_sample_interval): Analytics Engine applies adaptive sampling,
+   // so each stored row represents _sample_interval real events. COUNT() would
+   // undercount at volume.
    const sqlQuery = `
-    SELECT 
+    SELECT
       blob1 as link_id,
       floor(double1 / 86400) as day_number,
       blob9 as ip_address,
-      COUNT() as clicks
+      SUM(_sample_interval) as clicks
     FROM ${quoteIdentifier(config.datasetName)}
     WHERE ${whereClause}
     GROUP BY blob1, day_number, blob9
     ORDER BY day_number ASC
+    LIMIT ${AE_ROW_LIMIT}
   `;
 
   try {
@@ -848,6 +868,7 @@ export async function getDailyAnalyticsFromEngine(
 
     // DEBUG: console.log('[ANALYTICS ENGINE] Query returned', result.data.length, 'rows (filtered in SQL)');
     // DEBUG: console.log('[ANALYTICS ENGINE] Sample row:', result.data[0]);
+    warnIfTruncated('daily analytics', result.data.length);
 
     // Aggregate by date (sum clicks, count unique ip_addresses)
     const aggregated = new Map<string, { clicks: number; unique_ips: Set<string> }>();
@@ -929,16 +950,17 @@ export async function getGeoAnalyticsFromEngine(
   // Optimized approach: Filter in SQL WHERE clause, group by country, city, and IP
   // SECURITY: CF Analytics Engine requires raw SQL. Inputs validated by buildFilterWhereClause().
   const sqlQuery = `
-    SELECT 
+    SELECT
       blob1 as link_id,
       blob5 as country,
       blob6 as city,
       blob9 as ip_address,
-      COUNT() as clicks
+      SUM(_sample_interval) as clicks
     FROM ${quoteIdentifier(config.datasetName)}
     WHERE ${whereClause}
     GROUP BY blob1, blob5, blob6, blob9
     ORDER BY clicks DESC
+    LIMIT ${AE_ROW_LIMIT}
   `;
 
   try {
@@ -950,6 +972,7 @@ export async function getGeoAnalyticsFromEngine(
     }
 
     // DEBUG: console.log('[ANALYTICS ENGINE GEO] Query returned', result.data.length, 'rows (filtered in SQL)');
+    warnIfTruncated('geo analytics', result.data.length);
 
     // Aggregate by country and city (sum clicks, count unique ip_addresses)
     const aggregated = new Map<string, { country: string; city: string | null; clicks: number; unique_ips: Set<string> }>();
@@ -1018,15 +1041,16 @@ export async function getReferrerAnalyticsFromEngine(
   // Optimized approach: Filter in SQL WHERE clause, group by referrer and IP
   // SECURITY: CF Analytics Engine requires raw SQL. Inputs validated by buildFilterWhereClause().
   const sqlQuery = `
-    SELECT 
+    SELECT
       blob1 as link_id,
       blob8 as referrer,
       blob9 as ip_address,
-      COUNT() as clicks
+      SUM(_sample_interval) as clicks
     FROM ${quoteIdentifier(config.datasetName)}
     WHERE ${whereClause}
     GROUP BY blob1, blob8, blob9
     ORDER BY clicks DESC
+    LIMIT ${AE_ROW_LIMIT}
   `;
 
   try {
@@ -1038,9 +1062,7 @@ export async function getReferrerAnalyticsFromEngine(
     }
 
     // DEBUG: console.log('[ANALYTICS ENGINE REFERRER] Query returned', result.data.length, 'rows (filtered in SQL)');
-
-    // Import categorizeReferrer for processing
-    const { extractReferrerDomain, categorizeReferrer } = await import('./analytics');
+    warnIfTruncated('referrer analytics', result.data.length);
 
     // Aggregate by referrer domain (sum clicks, count unique ip_addresses)
     const aggregated = new Map<string, { referrer_domain: string; category: string; clicks: number; unique_ips: Set<string> }>();
@@ -1109,6 +1131,7 @@ export async function getRawEventsFromEngine(
   custom_param1?: string;
   custom_param2?: string;
   custom_param3?: string;
+  sample_interval?: number;
 }>> {
   const config = getAnalyticsEngineConfig(env);
   if (!config) {
@@ -1131,8 +1154,10 @@ export async function getRawEventsFromEngine(
   // blob16 = gclid, blob17 = fbclid, blob18 = custom_param1,
   // blob19 = custom_param2, blob20 = custom_param3
   // SECURITY: CF Analytics Engine requires raw SQL. Inputs validated by buildFilterWhereClause().
+  // _sample_interval is carried through so the D1 aggregation can weight each row
+  // by the number of real events it represents (Analytics Engine adaptive sampling).
   const sqlQuery = `
-    SELECT 
+    SELECT
       double1 as timestamp,
       blob1 as link_id,
       blob5 as country,
@@ -1147,10 +1172,12 @@ export async function getRawEventsFromEngine(
       blob15 as utm_campaign,
       blob18 as custom_param1,
       blob19 as custom_param2,
-      blob20 as custom_param3
+      blob20 as custom_param3,
+      _sample_interval as sample_interval
     FROM ${quoteIdentifier(config.datasetName)}
     WHERE ${whereClause}
     ORDER BY double1 ASC
+    LIMIT ${AE_ROW_LIMIT}
   `;
 
   try {
@@ -1162,6 +1189,7 @@ export async function getRawEventsFromEngine(
     }
 
     // DEBUG: console.log('[ANALYTICS ENGINE RAW EVENTS] Query returned', result.data.length, 'rows (filtered in SQL)');
+    warnIfTruncated('raw events', result.data.length);
 
     return result.data.map((row: any) => ({
       timestamp: Math.floor((row.timestamp || 0) * 1000), // Convert to milliseconds
@@ -1179,6 +1207,7 @@ export async function getRawEventsFromEngine(
       custom_param1: row.custom_param1 || undefined,
       custom_param2: row.custom_param2 || undefined,
       custom_param3: row.custom_param3 || undefined,
+      sample_interval: Number(row.sample_interval) || 1,
     }));
   } catch (error) {
     console.error('[ANALYTICS ENGINE] Error querying raw events:', error);
@@ -1217,17 +1246,18 @@ export async function getDeviceAnalyticsFromEngine(
   // Optimized approach: Filter in SQL WHERE clause, group by device fields and IP
   // SECURITY: CF Analytics Engine requires raw SQL. Inputs validated by buildFilterWhereClause().
   const sqlQuery = `
-    SELECT 
+    SELECT
       blob1 as link_id,
       blob10 as device_type,
       blob11 as browser,
       blob12 as os,
       blob9 as ip_address,
-      COUNT() as clicks
+      SUM(_sample_interval) as clicks
     FROM ${quoteIdentifier(config.datasetName)}
     WHERE ${whereClause}
     GROUP BY blob1, blob10, blob11, blob12, blob9
     ORDER BY clicks DESC
+    LIMIT ${AE_ROW_LIMIT}
   `;
 
   // DEBUG: console.log('[ANALYTICS ENGINE DEVICE] Executing query with SQL filtering:', sqlQuery);
@@ -1241,6 +1271,7 @@ export async function getDeviceAnalyticsFromEngine(
     }
 
     // DEBUG: console.log('[ANALYTICS ENGINE DEVICE] Query returned', result.data.length, 'rows (filtered in SQL)');
+    warnIfTruncated('device analytics', result.data.length);
     // DEBUG: console.log('[ANALYTICS ENGINE DEVICE] Sample row:', JSON.stringify(result.data[0]));
 
     // Aggregate based on groupBy parameter (sum clicks, count unique ip_addresses)
@@ -1352,18 +1383,19 @@ export async function getUtmAnalyticsFromEngine(
   // Optimized approach: Filter in SQL WHERE clause, group by UTM fields and IP
   // SECURITY: CF Analytics Engine requires raw SQL. Inputs validated by buildFilterWhereClause().
   const sqlQuery = `
-    SELECT 
+    SELECT
       blob1 as link_id,
       blob13 as utm_source,
       blob14 as utm_medium,
       blob15 as utm_campaign,
       blob9 as ip_address,
-      COUNT() as clicks
+      SUM(_sample_interval) as clicks
     FROM ${quoteIdentifier(config.datasetName)}
     WHERE ${whereClause}
       AND (blob13 != '' OR blob14 != '' OR blob15 != '')
     GROUP BY blob1, blob13, blob14, blob15, blob9
     ORDER BY clicks DESC
+    LIMIT ${AE_ROW_LIMIT}
   `;
 
   // DEBUG: console.log('[ANALYTICS ENGINE UTM] Executing query with SQL filtering:', sqlQuery);
@@ -1376,6 +1408,7 @@ export async function getUtmAnalyticsFromEngine(
     }
 
     // DEBUG: console.log('[ANALYTICS ENGINE UTM] Query returned', result.data.length, 'rows (filtered in SQL)');
+    warnIfTruncated('utm analytics', result.data.length);
 
     // Aggregate based on groupBy parameter (sum clicks, count unique ip_addresses)
     const aggregated = new Map<string, { utm_source: string | null; utm_medium: string | null; utm_campaign: string | null; clicks: number; unique_ips: Set<string> }>();
@@ -1492,13 +1525,13 @@ export async function getCustomParamAnalyticsFromEngine(
     paramColumn = 'blob20';
     paramNameValue = 'custom_param3';
   } else {
-    // Query all custom params - query each separately and combine
-    const results: Array<{ param_name: string; param_value: string | null; clicks: number; unique_visitors: number }> = [];
-
-    for (const param of ['custom_param1', 'custom_param2', 'custom_param3'] as const) {
-      const paramResults = await getCustomParamAnalyticsFromEngine(env, filters, startDate, endDate, param, limit);
-      results.push(...paramResults);
-    }
+    // Query all custom params in parallel and combine
+    const perParamResults = await Promise.all(
+      (['custom_param1', 'custom_param2', 'custom_param3'] as const).map(param =>
+        getCustomParamAnalyticsFromEngine(env, filters, startDate, endDate, param, limit)
+      )
+    );
+    const results = perParamResults.flat();
 
     // Sort by clicks and limit
     return results.sort((a, b) => b.clicks - a.clicks).slice(0, limit);
@@ -1516,11 +1549,12 @@ export async function getCustomParamAnalyticsFromEngine(
   // Optimized approach: Filter in SQL WHERE clause
   // SECURITY: CF Analytics Engine requires raw SQL. paramColumn is hardcoded. Inputs validated.
   const sqlQuery = `
-    SELECT blob1 as link_id, ${paramColumn} as param_value, blob9 as ip_address, COUNT() as clicks
+    SELECT blob1 as link_id, ${paramColumn} as param_value, blob9 as ip_address, SUM(_sample_interval) as clicks
     FROM ${quoteIdentifier(config.datasetName)}
     WHERE ${whereClause} AND ${paramColumn} != ''
     GROUP BY blob1, ${paramColumn}, blob9
     ORDER BY clicks DESC
+    LIMIT ${AE_ROW_LIMIT}
   `;
 
   try {
@@ -1532,6 +1566,7 @@ export async function getCustomParamAnalyticsFromEngine(
     }
 
     // DEBUG: console.log('[ANALYTICS ENGINE CUSTOM PARAM] Query returned', result.data.length, 'rows (filtered in SQL)');
+    warnIfTruncated('custom param analytics', result.data.length);
 
     // Aggregate by param value (sum clicks, count unique ip_addresses)
     const aggregated = new Map<string, { param_name: string; param_value: string | null; clicks: number; unique_ips: Set<string> }>();
@@ -1597,14 +1632,15 @@ export async function getAggregatedSummaryFromEngine(
   // Optimized approach: Filter in SQL WHERE clause, group by link_id and IP
   // SECURITY: CF Analytics Engine requires raw SQL. Inputs validated by buildFilterWhereClause().
   const sqlQuery = `
-    SELECT 
+    SELECT
       blob1 as link_id,
       blob9 as ip_address,
-      COUNT() as clicks
+      SUM(_sample_interval) as clicks
     FROM ${quoteIdentifier(config.datasetName)}
     WHERE ${whereClause}
     GROUP BY blob1, blob9
     ORDER BY clicks DESC
+    LIMIT ${AE_ROW_LIMIT}
   `;
 
   // DEBUG: console.log('[ANALYTICS ENGINE SUMMARY] Executing query with SQL filtering:', sqlQuery);
@@ -1617,6 +1653,7 @@ export async function getAggregatedSummaryFromEngine(
       // DEBUG: console.log('[ANALYTICS ENGINE SUMMARY] No data returned');
       return { total_clicks: 0, total_unique_visitors: 0 };
     }
+    warnIfTruncated('summary analytics', result.data.length);
 
     // Aggregate totals (sum clicks, count unique ip_addresses)
     // No more in-memory filtering needed - SQL does it!

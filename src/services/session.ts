@@ -20,6 +20,9 @@ export interface Session {
   email?: string;
   role: string;
   created_at: number;
+  // Issued-at (Unix seconds). Used to revoke sessions minted before a
+  // password change (A4). Missing on legacy sessions → treated as valid.
+  iat?: number;
   // Cached domain access (for performance optimization)
   accessible_domain_ids?: string[];
   global_access?: boolean;
@@ -37,6 +40,7 @@ export async function createSession(env: Env, user: { id: string; username?: str
     email: user.email,
     role: user.role,
     created_at: Date.now(),
+    iat: Math.floor(Date.now() / 1000),
   };
   
   // Store access token (short-lived)
@@ -66,6 +70,7 @@ export async function createSessionWithExpiry(env: Env, user: { id: string; user
     email: user.email,
     role: user.role,
     created_at: Date.now(),
+    iat: Math.floor(Date.now() / 1000),
   };
   
   // Store access token with custom TTL
@@ -80,8 +85,40 @@ export async function createSessionWithExpiry(env: Env, user: { id: string; user
 
 export async function getSession(env: Env, token: string): Promise<Session | null> {
   const key = `session:${token}`;
-  const session = await env.CACHE.get(key, 'json');
-  return (session as Session) || null;
+  const session = (await env.CACHE.get(key, 'json')) as Session | null;
+  if (!session) return null;
+
+  // A4: reject sessions minted before the user's most recent credential
+  // revocation (e.g. a password change). Only checked for sessions that carry
+  // an issued-at timestamp; legacy sessions without `iat` remain valid so
+  // existing logins are not broken.
+  if (typeof session.iat === 'number') {
+    const revokedAfter = await getSessionRevokedAfter(env, session.user_id);
+    if (revokedAfter !== null && session.iat < revokedAfter) {
+      // Session predates the revocation — invalidate it.
+      await env.CACHE.delete(key);
+      return null;
+    }
+  }
+
+  return session;
+}
+
+// A4: per-user "revoke everything issued before this time" marker. Set on
+// password change; read during session validation. TTL matches the longest
+// credential lifetime (refresh tokens: 30 days) so it stays effective.
+export async function setSessionRevokedAfter(env: Env, userId: string, atSeconds?: number): Promise<void> {
+  const key = `session_revoked_after:${userId}`;
+  const value = String(atSeconds ?? Math.floor(Date.now() / 1000));
+  await env.CACHE.put(key, value, { expirationTtl: REFRESH_TOKEN_TTL });
+}
+
+export async function getSessionRevokedAfter(env: Env, userId: string): Promise<number | null> {
+  const key = `session_revoked_after:${userId}`;
+  const value = await env.CACHE.get(key);
+  if (!value) return null;
+  const parsed = parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 export async function deleteSession(env: Env, token: string): Promise<void> {

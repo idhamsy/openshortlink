@@ -208,8 +208,17 @@ analyticsRouter.get('/links/:id', authMiddleware, requirePermission('view_analyt
       return date.toISOString().slice(0, 10);
     })();
 
-    // Check aggregation settings
-    const aggregationSettings = await getAnalyticsAggregationEnabledOrDefault(c.env);
+    // Check cache BEFORE any settings/data-source D1 reads (include data_source
+    // in the cache key). A cache hit should not pay for determineDataSources.
+    const cacheKey = getAnalyticsCacheKey('link', id, {
+      start_date: startDate,
+      end_date: endDate,
+      data_source: queryParams.data_source,
+    });
+    const cached = await getCachedAnalytics<any>(c.env, cacheKey);
+    if (cached) {
+      return c.json(cached);
+    }
 
     // Determine data sources
     const dataSourceDecision = await determineDataSources(
@@ -231,17 +240,6 @@ analyticsRouter.get('/links/:id', authMiddleware, requirePermission('view_analyt
       throw new HTTPException(400, {
         message: 'Cannot use D1 data source. Analytics aggregation is disabled.',
       });
-    }
-
-    // Check cache (include data_source in cache key)
-    const cacheKey = getAnalyticsCacheKey('link', id, {
-      start_date: startDate,
-      end_date: endDate,
-      data_source: queryParams.data_source,
-    });
-    const cached = await getCachedAnalytics<any>(c.env, cacheKey);
-    if (cached) {
-      return c.json(cached);
     }
 
     // Query appropriate data sources
@@ -308,104 +306,44 @@ analyticsRouter.get('/links/:id', authMiddleware, requirePermission('view_analyt
         warnings.push(credentialError);
       } else {
         try {
-          const recentTimeSeries = await getDailyAnalyticsFromEngine(
-            c.env,
-            { linkIds: [link.id] },
-            dataSourceDecision.splitRange.recent.start,
-            dataSourceDecision.splitRange.recent.end
-          );
+          const recentRange = dataSourceDecision.splitRange.recent;
+          const engineFilter = { linkIds: [link.id] };
+
+          // Run all Analytics Engine queries in parallel (each is a full HTTPS
+          // round trip over the same dataset; sequential was ~3-8s per view).
+          const [
+            recentTimeSeries,
+            recentGeo,
+            recentReferrers,
+            recentDeviceTypes,
+            recentBrowsers,
+            recentOs,
+            recentUtmSources,
+            recentUtmMediums,
+            recentUtmCampaigns,
+            recentSummary,
+          ] = await Promise.all([
+            getDailyAnalyticsFromEngine(c.env, engineFilter, recentRange.start, recentRange.end),
+            getGeoAnalyticsFromEngine(c.env, engineFilter, recentRange.start, recentRange.end, 20),
+            getReferrerAnalyticsFromEngine(c.env, engineFilter, recentRange.start, recentRange.end, 20),
+            getDeviceAnalyticsFromEngine(c.env, engineFilter, recentRange.start, recentRange.end, 'device_type', 20),
+            getDeviceAnalyticsFromEngine(c.env, engineFilter, recentRange.start, recentRange.end, 'browser', 20),
+            getDeviceAnalyticsFromEngine(c.env, engineFilter, recentRange.start, recentRange.end, 'os', 20),
+            getUtmAnalyticsFromEngine(c.env, engineFilter, recentRange.start, recentRange.end, 'source', 20),
+            getUtmAnalyticsFromEngine(c.env, engineFilter, recentRange.start, recentRange.end, 'medium', 20),
+            getUtmAnalyticsFromEngine(c.env, engineFilter, recentRange.start, recentRange.end, 'campaign', 20),
+            getAggregatedSummaryFromEngine(c.env, engineFilter, recentRange.start, recentRange.end),
+          ]);
+
           timeSeries.push(...recentTimeSeries);
-
-          const recentGeo = await getGeoAnalyticsFromEngine(
-            c.env,
-            { linkIds: [link.id] },
-            dataSourceDecision.splitRange.recent.start,
-            dataSourceDecision.splitRange.recent.end,
-            20
-          );
           geography.push(...recentGeo);
-
-          const recentReferrers = await getReferrerAnalyticsFromEngine(
-            c.env,
-            { linkIds: [link.id] },
-            dataSourceDecision.splitRange.recent.start,
-            dataSourceDecision.splitRange.recent.end,
-            20
-          );
           referrers.push(...recentReferrers);
-
-          // Fetch Device Breakdowns
-          const recentDeviceTypes = await getDeviceAnalyticsFromEngine(
-            c.env,
-            { linkIds: [link.id] },
-            dataSourceDecision.splitRange.recent.start,
-            dataSourceDecision.splitRange.recent.end,
-            'device_type',
-            20
-          );
-          // DEBUG: console.log('[LINK ANALYTICS] recentDeviceTypes:', JSON.stringify(recentDeviceTypes));
           deviceTypes.push(...recentDeviceTypes);
-
-          const recentBrowsers = await getDeviceAnalyticsFromEngine(
-            c.env,
-            { linkIds: [link.id] },
-            dataSourceDecision.splitRange.recent.start,
-            dataSourceDecision.splitRange.recent.end,
-            'browser',
-            20
-          );
-          // DEBUG: console.log('[LINK ANALYTICS] recentBrowsers:', JSON.stringify(recentBrowsers));
           browsers.push(...recentBrowsers);
-
-          const recentOs = await getDeviceAnalyticsFromEngine(
-            c.env,
-            { linkIds: [link.id] },
-            dataSourceDecision.splitRange.recent.start,
-            dataSourceDecision.splitRange.recent.end,
-            'os',
-            20
-          );
-          // DEBUG: console.log('[LINK ANALYTICS] recentOs:', JSON.stringify(recentOs));
           os.push(...recentOs);
-
-
-          // Fetch UTM Breakdowns
-          const recentUtmSources = await getUtmAnalyticsFromEngine(
-            c.env,
-            { linkIds: [link.id] },
-            dataSourceDecision.splitRange.recent.start,
-            dataSourceDecision.splitRange.recent.end,
-            'source',
-            20
-          );
           utmSources.push(...recentUtmSources);
-
-          const recentUtmMediums = await getUtmAnalyticsFromEngine(
-            c.env,
-            { linkIds: [link.id] },
-            dataSourceDecision.splitRange.recent.start,
-            dataSourceDecision.splitRange.recent.end,
-            'medium',
-            20
-          );
           utmMediums.push(...recentUtmMediums);
-
-          const recentUtmCampaigns = await getUtmAnalyticsFromEngine(
-            c.env,
-            { linkIds: [link.id] },
-            dataSourceDecision.splitRange.recent.start,
-            dataSourceDecision.splitRange.recent.end,
-            'campaign',
-            20
-          );
           utmCampaigns.push(...recentUtmCampaigns);
-
-          const recentSummary = await getAggregatedSummaryFromEngine(
-            c.env,
-            { linkIds: [link.id] },
-            dataSourceDecision.splitRange.recent.start,
-            dataSourceDecision.splitRange.recent.end
-          );
           summaryClicks += recentSummary.total_clicks;
           summaryUniqueVisitors = Math.max(summaryUniqueVisitors, recentSummary.total_unique_visitors);
         } catch (error) {
@@ -428,12 +366,32 @@ analyticsRouter.get('/links/:id', authMiddleware, requirePermission('view_analyt
     // Query old data from D1
     if (dataSourceDecision.useD1 && dataSourceDecision.splitRange.old) {
       try {
-        const oldDaily = await getDailyAnalytics(
-          c.env,
-          link.id,
-          dataSourceDecision.splitRange.old.start,
-          dataSourceDecision.splitRange.old.end
-        );
+        const oldStart = dataSourceDecision.splitRange.old.start;
+        const oldEnd = dataSourceDecision.splitRange.old.end;
+
+        // Run all D1 queries in parallel, then merge (merges are pure/in-memory).
+        const [
+          oldDaily,
+          oldGeo,
+          oldReferrers,
+          oldDeviceTypes,
+          oldBrowsers,
+          oldOs,
+          oldUtmSources,
+          oldUtmMediums,
+          oldUtmCampaigns,
+        ] = await Promise.all([
+          getDailyAnalytics(c.env, link.id, oldStart, oldEnd),
+          getGeoAnalytics(c.env, { linkIds: [link.id], startDate: oldStart, endDate: oldEnd, limit: 20 }),
+          getReferrerAnalytics(c.env, { linkIds: [link.id], startDate: oldStart, endDate: oldEnd, limit: 20 }),
+          getDeviceAnalytics(c.env, { linkIds: [link.id], startDate: oldStart, endDate: oldEnd, groupBy: 'device_type', limit: 20 }),
+          getDeviceAnalytics(c.env, { linkIds: [link.id], startDate: oldStart, endDate: oldEnd, groupBy: 'browser', limit: 20 }),
+          getDeviceAnalytics(c.env, { linkIds: [link.id], startDate: oldStart, endDate: oldEnd, groupBy: 'os', limit: 20 }),
+          getUtmAnalytics(c.env, { linkIds: [link.id], startDate: oldStart, endDate: oldEnd, groupBy: 'source', limit: 20 }),
+          getUtmAnalytics(c.env, { linkIds: [link.id], startDate: oldStart, endDate: oldEnd, groupBy: 'medium', limit: 20 }),
+          getUtmAnalytics(c.env, { linkIds: [link.id], startDate: oldStart, endDate: oldEnd, groupBy: 'campaign', limit: 20 }),
+        ]);
+
         const oldTimeSeries: TimeSeriesDataPoint[] = oldDaily.map(day => ({
           date: day.date,
           clicks: day.clicks,
@@ -441,15 +399,6 @@ analyticsRouter.get('/links/:id', authMiddleware, requirePermission('view_analyt
         }));
         timeSeries = mergeTimeSeries(timeSeries, oldTimeSeries);
 
-        const oldGeo = await getGeoAnalytics(
-          c.env,
-          {
-            linkIds: [link.id],
-            startDate: dataSourceDecision.splitRange.old.start,
-            endDate: dataSourceDecision.splitRange.old.end,
-            limit: 20
-          }
-        );
         const oldGeoPoints: GeographyDataPoint[] = oldGeo.map(geo => ({
           country: geo.country || 'unknown',
           city: geo.city || null,
@@ -458,15 +407,6 @@ analyticsRouter.get('/links/:id', authMiddleware, requirePermission('view_analyt
         }));
         geography = mergeGeographyData(geography, oldGeoPoints);
 
-        const oldReferrers = await getReferrerAnalytics(
-          c.env,
-          {
-            linkIds: [link.id],
-            startDate: dataSourceDecision.splitRange.old.start,
-            endDate: dataSourceDecision.splitRange.old.end,
-            limit: 20
-          }
-        );
         const oldReferrerPoints: ReferrerDataPoint[] = oldReferrers.map(ref => ({
           referrer_domain: ref.referrer_domain || 'direct',
           clicks: ref.clicks,
@@ -475,24 +415,11 @@ analyticsRouter.get('/links/:id', authMiddleware, requirePermission('view_analyt
         }));
         referrers = mergeReferrerData(referrers, oldReferrerPoints);
 
-        // Merge Device Data
-        const oldDeviceTypes = await getDeviceAnalytics(c.env, { linkIds: [link.id], startDate: dataSourceDecision.splitRange.old.start, endDate: dataSourceDecision.splitRange.old.end, groupBy: 'device_type', limit: 20 });
         deviceTypes = mergeDeviceData(deviceTypes, oldDeviceTypes);
-
-        const oldBrowsers = await getDeviceAnalytics(c.env, { linkIds: [link.id], startDate: dataSourceDecision.splitRange.old.start, endDate: dataSourceDecision.splitRange.old.end, groupBy: 'browser', limit: 20 });
         browsers = mergeDeviceData(browsers, oldBrowsers);
-
-        const oldOs = await getDeviceAnalytics(c.env, { linkIds: [link.id], startDate: dataSourceDecision.splitRange.old.start, endDate: dataSourceDecision.splitRange.old.end, groupBy: 'os', limit: 20 });
         os = mergeDeviceData(os, oldOs);
-
-        // Merge UTM Data
-        const oldUtmSources = await getUtmAnalytics(c.env, { linkIds: [link.id], startDate: dataSourceDecision.splitRange.old.start, endDate: dataSourceDecision.splitRange.old.end, groupBy: 'source', limit: 20 });
         utmSources = mergeUtmData(utmSources, oldUtmSources);
-
-        const oldUtmMediums = await getUtmAnalytics(c.env, { linkIds: [link.id], startDate: dataSourceDecision.splitRange.old.start, endDate: dataSourceDecision.splitRange.old.end, groupBy: 'medium', limit: 20 });
         utmMediums = mergeUtmData(utmMediums, oldUtmMediums);
-
-        const oldUtmCampaigns = await getUtmAnalytics(c.env, { linkIds: [link.id], startDate: dataSourceDecision.splitRange.old.start, endDate: dataSourceDecision.splitRange.old.end, groupBy: 'campaign', limit: 20 });
         utmCampaigns = mergeUtmData(utmCampaigns, oldUtmCampaigns);
 
         summaryClicks += oldDaily.reduce((sum, day) => sum + day.clicks, 0);
@@ -684,6 +611,23 @@ analyticsRouter.get('/dashboard', authMiddleware, requirePermission('view_analyt
       return date.toISOString().slice(0, 10);
     })();
 
+    // Check cache BEFORE determineDataSources (which runs settings D1 reads) so a
+    // cache hit doesn't pay for them. The cache key already includes all filters,
+    // date range and data_source, so it is safe to short-circuit here.
+    const cacheKey = getAnalyticsCacheKey('dashboard', user.id, {
+      domain_id: queryParams.domain_id,
+      domain_names: queryParams.domain_names?.join(','),
+      tag_ids: queryParams.tag_ids?.join(','),
+      category_ids: queryParams.category_ids?.join(','),
+      start_date: startDate,
+      end_date: endDate,
+      data_source: queryParams.data_source,
+    });
+    const cached = await getCachedAnalytics<any>(c.env, cacheKey);
+    if (cached) {
+      return c.json(cached);
+    }
+
     // Determine data sources
     const dataSourceDecision = await determineDataSources(
       c.env,
@@ -697,21 +641,6 @@ analyticsRouter.get('/dashboard', authMiddleware, requirePermission('view_analyt
       throw new HTTPException(400, {
         message: 'Data older than 89 days is not available. Analytics aggregation is disabled.',
       });
-    }
-
-    // Check cache (include filters in cache key)
-    const cacheKey = getAnalyticsCacheKey('dashboard', user.id, {
-      domain_id: queryParams.domain_id,
-      domain_names: queryParams.domain_names?.join(','),
-      tag_ids: queryParams.tag_ids?.join(','),
-      category_ids: queryParams.category_ids?.join(','),
-      start_date: startDate,
-      end_date: endDate,
-      data_source: queryParams.data_source,
-    });
-    const cached = await getCachedAnalytics<any>(c.env, cacheKey);
-    if (cached) {
-      return c.json(cached);
     }
 
     // Convert domain_names to domain_ids if provided
@@ -1120,10 +1049,14 @@ analyticsRouter.get('/dashboard', authMiddleware, requirePermission('view_analyt
     // TODO: Implement Analytics Engine top links query for recent data
     // For now, if no old data, top links will be empty (or we could aggregate from timeSeries)
 
-    // Fetch link details only for top links
+    // Fetch link details only for top links, in a single query (IDs come from the
+    // D1 aggregation, already scoped to accessible domains; count is small).
     const topLinkIds = topLinksData.map((t: { link_id: string; clicks: number }) => t.link_id);
     const topLinksDetails = topLinkIds.length > 0
-      ? await Promise.all(topLinkIds.map((id: string) => getLinkById(c.env, id)))
+      ? ((await c.env.DB
+          .prepare(`SELECT id, slug, title FROM links WHERE id IN (${topLinkIds.map(() => '?').join(',')})`)
+          .bind(...topLinkIds)
+          .all<{ id: string; slug: string; title: string | null }>()).results || [])
       : [];
 
     const topLinks = topLinksData
@@ -1848,8 +1781,8 @@ analyticsRouter.post('/aggregate', authMiddleware, requirePermission('manage_dom
     return c.json({
       success: true,
       message: result.skipped
-        ? 'Yesterday skipped (not old enough to aggregate - data is aggregated in real-time)'
-        : 'Yesterday aggregation completed',
+        ? 'Nothing to aggregate (already caught up to the aggregation threshold)'
+        : 'Aggregation completed (aggregated all pending dates up to the threshold)',
       result,
     });
   }

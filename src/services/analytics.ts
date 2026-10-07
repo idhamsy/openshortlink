@@ -123,12 +123,14 @@ export function parseUserAgent(userAgent: string): {
 } {
   const ua = userAgent.toLowerCase();
 
-  // Detect device type
+  // Detect device type — check tablet BEFORE mobile. Android tablets report
+  // 'android' WITHOUT 'mobile' in the UA, so they must be classified as tablet
+  // before the mobile branch (which also matches 'android') can claim them.
   let device_type: 'desktop' | 'mobile' | 'tablet' = 'desktop';
-  if (ua.includes('mobile') || ua.includes('android')) {
-    device_type = 'mobile';
-  } else if (ua.includes('tablet') || ua.includes('ipad')) {
+  if (ua.includes('ipad') || ua.includes('tablet') || (ua.includes('android') && !ua.includes('mobile'))) {
     device_type = 'tablet';
+  } else if (ua.includes('mobile') || ua.includes('android')) {
+    device_type = 'mobile';
   }
 
   // Detect browser

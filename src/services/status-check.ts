@@ -89,11 +89,17 @@ export async function checkLinkStatus(
           statusCode = initialResponse.status;
         }
       } else if (initialResponse) {
+        // Some servers reject HEAD with 405 (Method Not Allowed) or 501 (Not
+        // Implemented). Fall back to GET for those instead of marking the link
+        // broken — throw a sentinel that drops into the GET-fallback path below.
+        if (initialResponse.status === 405 || initialResponse.status === 501) {
+          throw new Error('HEAD_NOT_SUPPORTED');
+        }
         // Not a redirect, use the status code directly
         statusCode = initialResponse.status;
       }
     } catch (headError: any) {
-      // If HEAD fails, try GET (some servers don't support HEAD)
+      // If HEAD fails (network error) or the server rejects HEAD (405/501), try GET.
       if (headError.name !== 'AbortError') {
         try {
           // Try with manual redirect first
@@ -196,9 +202,32 @@ export async function checkLinksBatch(
   const results: StatusCheckResult[] = [];
   const rateLimitDelay = 100; // 100ms between requests (10 requests/second)
 
-  // OPTIMIZATION: Collect all statements for batch execution
-  const updateStatements: any[] = [];
-  const historyStatements: any[] = [];
+  // OPTIMIZATION: Collect statements and flush them per chunk. A single killed
+  // invocation used to lose ALL writes (statements were only executed after the
+  // entire batch of network fetches). Flushing every FLUSH_EVERY links persists
+  // partial progress and advances next_status_check_at so links aren't retried
+  // forever after a timeout.
+  const FLUSH_EVERY = 20;
+  let updateStatements: any[] = [];
+  let historyStatements: any[] = [];
+
+  const flushStatements = async () => {
+    const allStatements = [...updateStatements, ...historyStatements];
+    if (allStatements.length === 0) return;
+    updateStatements = [];
+    historyStatements = [];
+
+    const BATCH_SIZE = 500;
+    for (let i = 0; i < allStatements.length; i += BATCH_SIZE) {
+      const batch = allStatements.slice(i, i + BATCH_SIZE);
+      try {
+        await env.DB.batch(batch);
+      } catch (error) {
+        console.error(`[STATUS CHECK] Batch execution failed for batch starting at index ${i}:`, error);
+        // Continue despite error - status checks are not critical for redirect functionality
+      }
+    }
+  };
 
   for (const link of links) {
     try {
@@ -248,6 +277,12 @@ export async function checkLinksBatch(
 
       results.push(fullResult);
 
+      // Flush accumulated writes periodically so partial progress survives a
+      // killed invocation (D1 write per chunk, not one giant write at the end).
+      if (updateStatements.length >= FLUSH_EVERY) {
+        await flushStatements();
+      }
+
       // Rate limiting: wait between requests
       if (links.indexOf(link) < links.length - 1) {
         await new Promise(resolve => setTimeout(resolve, rateLimitDelay));
@@ -267,21 +302,8 @@ export async function checkLinksBatch(
     }
   }
 
-  // Execute all database operations in a single batch
-  const allStatements = [...updateStatements, ...historyStatements];
-  const BATCH_SIZE = 500;
-
-  if (allStatements.length > 0) {
-    for (let i = 0; i < allStatements.length; i += BATCH_SIZE) {
-      const batch = allStatements.slice(i, i + BATCH_SIZE);
-      try {
-        await env.DB.batch(batch);
-      } catch (error) {
-        console.error(`[STATUS CHECK] Batch execution failed for batch starting at index ${i}:`, error);
-        // Continue despite error - status checks are not critical for redirect functionality
-      }
-    }
-  }
+  // Flush any remaining accumulated writes from the final (partial) chunk.
+  await flushStatements();
 
   return results;
 }

@@ -12,12 +12,12 @@ import { HTTPException } from 'hono/http-exception';
 import { z } from 'zod';
 import type { Env, Variables } from '../types';
 import { getUserByUsername, getUserByEmail, getUserById, createUser, updateLastLogin } from '../db/users';
-import { hashPassword, verifyPassword } from '../utils/crypto';
-import { createSession, deleteSession, getRefreshToken, deleteRefreshToken, countUserRefreshTokens } from '../services/session';
+import { hashPassword, verifyPassword, needsRehash, constantTimeEqualStr, DUMMY_PASSWORD_HASH } from '../utils/crypto';
+import { createSession, deleteSession, getRefreshToken, deleteRefreshToken, countUserRefreshTokens, setSessionRevokedAfter, getSessionRevokedAfter } from '../services/session';
 import { createRateLimit } from '../middleware/rateLimit';
 import { validateJson } from '../middleware/validate';
 import { optionalAuth, authMiddleware } from '../middleware/auth';
-import { generateMFASecret, verifyMFACode, generateBackupCodes, verifyBackupCode, createMFATempToken, getMFATempToken, deleteMFATempToken } from '../services/mfa';
+import { generateMFASecret, verifyMFACode, generateBackupCodes, verifyBackupCode, hashBackupCodes, encryptMFASecret, decryptMFASecret, createMFATempToken, getMFATempToken, deleteMFATempToken } from '../services/mfa';
 import { updateUser } from '../db/users';
 import { logAuditEvent, getAuditLogs, getIpAddress, getUserAgent, type AuditEventType, cleanupOldAuditLogs } from '../services/audit';
 import { getSessionTokenFromRequest } from '../services/session';
@@ -50,6 +50,9 @@ authRouter.post('/login', createRateLimit({
   }
 
   if (!user) {
+    // A7: run a dummy verify so the "user not found" path takes comparable time
+    // to the "wrong password" path, preventing username enumeration by timing.
+    await verifyPassword(validated.password, DUMMY_PASSWORD_HASH);
     throw new HTTPException(401, { message: 'Invalid username or password' });
   }
 
@@ -70,6 +73,17 @@ authRouter.post('/login', createRateLimit({
       details: { username: validated.username },
     });
     throw new HTTPException(401, { message: 'Invalid username or password' });
+  }
+
+  // A5: opportunistically upgrade legacy / low-iteration password hashes to the
+  // current PBKDF2 format on a successful login. Best-effort — never blocks login.
+  if (needsRehash(passwordHash)) {
+    try {
+      const upgradedHash = await hashPassword(validated.password);
+      await updateUser(c.env, user.id, { password_hash: upgradedHash } as any);
+    } catch {
+      // Non-fatal: keep the existing (still-valid) hash if rehash fails.
+    }
   }
 
   // Check if MFA is enabled
@@ -176,7 +190,7 @@ authRouter.post('/register', createRateLimit({
       });
     }
 
-    if (!validated.setup_token || validated.setup_token !== c.env.SETUP_TOKEN) {
+    if (!validated.setup_token || !constantTimeEqualStr(validated.setup_token, c.env.SETUP_TOKEN)) {
       throw new HTTPException(403, {
         message: 'Invalid setup token. First user creation requires a valid setup token.'
       });
@@ -325,6 +339,14 @@ authRouter.post('/refresh', createRateLimit({
   const refreshData = await getRefreshToken(c.env, refreshToken);
   if (!refreshData) {
     throw new HTTPException(401, { message: 'Invalid or expired refresh token' });
+  }
+
+  // A4: reject refresh tokens issued before the user's last credential revocation
+  // (e.g. a password change), so they can no longer mint new sessions.
+  const revokedAfter = await getSessionRevokedAfter(c.env, refreshData.user_id);
+  if (revokedAfter !== null && Math.floor(refreshData.created_at / 1000) < revokedAfter) {
+    await deleteRefreshToken(c.env, refreshToken);
+    throw new HTTPException(401, { message: 'Refresh token has been revoked' });
   }
 
   // Get user
@@ -481,10 +503,16 @@ authRouter.post('/mfa/setup', authMiddleware, async (c) => {
   const { secret, qrCodeUrl } = generateMFASecret(user.id, email);
   const backupCodes = generateBackupCodes();
 
+  // A2: encrypt the secret at rest and store only hashes of the backup codes.
+  // The plaintext secret/codes are returned to the user once (below) but never
+  // persisted in the clear.
+  const encryptedSecret = await encryptMFASecret(c.env, secret);
+  const hashedBackupCodes = await hashBackupCodes(backupCodes);
+
   // Store secret and backup codes (but don't enable MFA yet - user needs to verify first)
   await updateUser(c.env, user.id, {
-    mfa_secret: secret,
-    mfa_backup_codes: JSON.stringify(backupCodes),
+    mfa_secret: encryptedSecret,
+    mfa_backup_codes: JSON.stringify(hashedBackupCodes),
   } as any);
 
   // Log MFA setup initiation
@@ -522,17 +550,21 @@ authRouter.post('/mfa/verify-setup', authMiddleware, validateJson(mfaVerifySetup
     throw new HTTPException(400, { message: 'MFA setup not initiated. Call /mfa/setup first.' });
   }
 
-  const secret = fullUser.mfa_secret;
+  // A2: decrypt the stored secret (legacy plaintext secrets pass through).
+  const secret = await decryptMFASecret(c.env, fullUser.mfa_secret);
   const isValid = verifyMFACode(secret, validated.code);
 
   if (!isValid) {
     throw new HTTPException(400, { message: 'Invalid MFA code' });
   }
 
-  // Enable MFA
-  await updateUser(c.env, user.id, {
-    mfa_enabled: 1,
-  } as any);
+  // Enable MFA. Opportunistically re-encrypt a legacy plaintext secret at rest.
+  const enableUpdate: Record<string, unknown> = { mfa_enabled: 1 };
+  if (fullUser.mfa_secret && fullUser.mfa_secret === secret) {
+    // Stored value equalled the decrypted value → it was plaintext; encrypt it.
+    enableUpdate.mfa_secret = await encryptMFASecret(c.env, secret);
+  }
+  await updateUser(c.env, user.id, enableUpdate as any);
 
   // Log MFA enabled
   await logAuditEvent(c.env, {
@@ -554,6 +586,31 @@ authRouter.post('/mfa/disable', authMiddleware, async (c) => {
 
   if (user.role !== 'owner' && user.role !== 'admin') {
     throw new HTTPException(403, { message: 'Only owner and admin roles can disable MFA' });
+  }
+
+  // A3: require re-authentication (current TOTP code or account password) before
+  // disabling MFA, so a hijacked session alone cannot silently strip 2FA.
+  const fullUser = await getUserById(c.env, user.id);
+  if (!fullUser || !fullUser.mfa_enabled) {
+    throw new HTTPException(400, { message: 'MFA is not enabled for this user' });
+  }
+
+  const body = await c.req.json().catch(() => ({} as Record<string, unknown>));
+  const mfaCode = typeof body.mfa_code === 'string' ? body.mfa_code : undefined;
+  const password = typeof body.password === 'string' ? body.password : undefined;
+
+  let reauthed = false;
+  if (mfaCode && fullUser.mfa_secret) {
+    const secret = await decryptMFASecret(c.env, fullUser.mfa_secret);
+    reauthed = verifyMFACode(secret, mfaCode);
+  } else if (password && fullUser.password_hash) {
+    reauthed = await verifyPassword(password, fullUser.password_hash);
+  }
+
+  if (!reauthed) {
+    throw new HTTPException(401, {
+      message: 'A valid MFA code or current password is required to disable MFA',
+    });
   }
 
   // Disable MFA and clear secret
@@ -579,7 +636,15 @@ authRouter.post('/mfa/disable', authMiddleware, async (c) => {
 
 // MFA Verify (for login) - schema imported from ../schemas
 
-authRouter.post('/mfa/verify', validateJson(mfaVerifySchema), async (c) => {
+// A1: rate limit MFA verification per IP (mirrors /login's 5/min) to blunt
+// TOTP/backup-code brute force by an attacker who already has the password.
+const MFA_MAX_TOKEN_FAILURES = 5;
+
+authRouter.post('/mfa/verify', createRateLimit({
+  window: 60,
+  max: 5,
+  key: (c) => `auth:mfa-verify:${c.req.header('CF-Connecting-IP') || 'unknown'}`,
+}), validateJson(mfaVerifySchema), async (c) => {
   const validated = c.req.valid('json');
 
   if (!validated.code && !validated.backup_code) {
@@ -592,6 +657,10 @@ authRouter.post('/mfa/verify', validateJson(mfaVerifySchema), async (c) => {
     throw new HTTPException(401, { message: 'Invalid or expired MFA token' });
   }
 
+  // A1: per-token failure counter. After N failures we destroy the temp token so
+  // the attacker must complete a fresh password login to get a new one.
+  const failKey = `mfa_fail:${validated.mfa_token}`;
+
   // Get user
   const user = await getUserById(c.env, tempToken.user_id);
   if (!user || !user.mfa_enabled) {
@@ -602,16 +671,17 @@ authRouter.post('/mfa/verify', validateJson(mfaVerifySchema), async (c) => {
     throw new HTTPException(400, { message: 'MFA secret not configured for this user' });
   }
 
-  const secret = user.mfa_secret;
+  // A2: decrypt the stored secret (legacy plaintext secrets pass through).
+  const secret = await decryptMFASecret(c.env, user.mfa_secret);
   let isValid = false;
 
   // Try TOTP code first
   if (validated.code && !validated.backup_code) {
     isValid = verifyMFACode(secret, validated.code);
   } else if (validated.backup_code) {
-    // Try backup code
+    // Try backup code (stored hashed; legacy plaintext still supported)
     const backupCodesJson = user.mfa_backup_codes || '[]';
-    const result = verifyBackupCode(backupCodesJson, validated.backup_code);
+    const result = await verifyBackupCode(backupCodesJson, validated.backup_code);
     isValid = result.valid;
 
     if (isValid) {
@@ -623,6 +693,18 @@ authRouter.post('/mfa/verify', validateJson(mfaVerifySchema), async (c) => {
   }
 
   if (!isValid) {
+    // A1: increment the per-token failure counter; destroy the temp token once
+    // the threshold is reached so brute force can't continue against it.
+    const priorFailures = parseInt((await c.env.CACHE.get(failKey)) || '0', 10) || 0;
+    const failures = priorFailures + 1;
+    if (failures >= MFA_MAX_TOKEN_FAILURES) {
+      await deleteMFATempToken(c.env, validated.mfa_token);
+      await c.env.CACHE.delete(failKey);
+    } else {
+      // Keep the counter alive for the remaining life of the temp token (5 min).
+      await c.env.CACHE.put(failKey, String(failures), { expirationTtl: 300 });
+    }
+
     // Log MFA verification failure
     await logAuditEvent(c.env, {
       user_id: user.id,
@@ -632,6 +714,9 @@ authRouter.post('/mfa/verify', validateJson(mfaVerifySchema), async (c) => {
     });
     throw new HTTPException(401, { message: 'Invalid MFA code' });
   }
+
+  // Success — clear any accumulated failure counter for this token.
+  await c.env.CACHE.delete(failKey);
 
   // Log MFA verification success
   await logAuditEvent(c.env, {
@@ -718,6 +803,18 @@ authRouter.post('/change-password', authMiddleware, validateJson(changePasswordS
     must_change_password: 0,
   } as any);
 
+  // A4: invalidate every session/refresh token issued before now. Sessions carry
+  // an `iat`; getSession() rejects any with iat < this marker, and /refresh
+  // rejects refresh tokens created before it — so a compromised session/refresh
+  // token cannot survive a password change.
+  await setSessionRevokedAfter(c.env, user.id);
+
+  // Also revoke the current caller's session cookie so they must re-authenticate.
+  const currentToken = getSessionTokenFromRequest(c.req.raw);
+  if (currentToken) {
+    await deleteSession(c.env, currentToken);
+  }
+
   // Log password change
   await logAuditEvent(c.env, {
     user_id: user.id,
@@ -756,7 +853,9 @@ authRouter.post('/mfa/regenerate-backup-codes', authMiddleware, async (c) => {
     throw new HTTPException(400, { message: 'MFA code required to regenerate backup codes' });
   }
 
-  const isValid = verifyMFACode(fullUser.mfa_secret, mfaCode);
+  // A2: decrypt the stored secret before verifying (legacy plaintext passes through).
+  const regenSecret = await decryptMFASecret(c.env, fullUser.mfa_secret);
+  const isValid = verifyMFACode(regenSecret, mfaCode);
   if (!isValid) {
     throw new HTTPException(401, { message: 'Invalid MFA code' });
   }
@@ -764,9 +863,12 @@ authRouter.post('/mfa/regenerate-backup-codes', authMiddleware, async (c) => {
   // Generate new backup codes
   const newBackupCodes = generateBackupCodes();
 
+  // A2: store only hashes; the plaintext codes are returned to the user once below.
+  const hashedNewBackupCodes = await hashBackupCodes(newBackupCodes);
+
   // Update backup codes
   await updateUser(c.env, user.id, {
-    mfa_backup_codes: JSON.stringify(newBackupCodes),
+    mfa_backup_codes: JSON.stringify(hashedNewBackupCodes),
   } as any);
 
   // Log backup code regeneration
@@ -792,8 +894,13 @@ authRouter.post('/mfa/regenerate-backup-codes', authMiddleware, async (c) => {
 
 authRouter.post('/token', authMiddleware, async (c) => {
   try {
+    // A12: this is a testing-only endpoint. Do not expose it in production.
+    if (((c.env as any).ENVIRONMENT) === 'production') {
+      throw new HTTPException(404, { message: 'Not found' });
+    }
+
     const user = c.get('user') as { id: string; username?: string; email?: string; role: string };
-    
+
     // Handle empty body gracefully (for default expiration)
     const body = await c.req.json().catch(() => ({}));
     const validated = createTokenSchema.parse(body);
@@ -807,13 +914,10 @@ authRouter.post('/token', authMiddleware, async (c) => {
       });
     }
     
-    // Log for debugging
-    console.log('Creating token with custom expiry:', { 
-      userId: user.id, 
+    // Log for debugging (A12: no PII — omit username/email/role)
+    console.log('Creating token with custom expiry:', {
+      userId: user.id,
       expiresIn,
-      username: user.username,
-      email: user.email,
-      role: user.role
     });
     
     // Create token with custom expiration

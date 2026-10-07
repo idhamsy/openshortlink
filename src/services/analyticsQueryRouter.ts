@@ -36,51 +36,74 @@ export interface DataSourceDecision {
 
 
 /**
- * Split date range at the threshold boundary
+ * Compute the threshold boundary date (UTC midnight, `thresholdDays` ago).
+ * Cloudflare Workers run in UTC, so UTC math matches production and keeps
+ * the pure date functions deterministic under test.
+ */
+function computeThresholdDate(thresholdDays: number, now: Date = new Date()): Date {
+  const threshold = new Date(now);
+  threshold.setUTCHours(0, 0, 0, 0);
+  threshold.setUTCDate(threshold.getUTCDate() - thresholdDays);
+  return threshold;
+}
+
+/**
+ * Split date range at the threshold boundary.
+ *
+ * Data at/after the threshold (the newer segment) lives in Analytics Engine;
+ * data before the threshold (the older segment) lives in D1. Consumers query
+ * `splitRange.recent` from Analytics Engine and `splitRange.old` from D1, so:
+ * - `recent` = newer segment { threshold .. end }   -> Analytics Engine
+ * - `old`    = older segment { start .. threshold-1 } -> D1
+ *
+ * The boundary day (the threshold date itself) is assigned ONLY to `recent`,
+ * and `old` ends one day before the threshold, so no date is queried from both
+ * sources (prevents double counting when the two series are merged).
  */
 export function splitDateRange(
   startDate: string,
   endDate: string,
-  thresholdDays: number
+  thresholdDays: number,
+  now: Date = new Date()
 ): SplitDateRange {
-  const thresholdDate = new Date();
-  thresholdDate.setDate(thresholdDate.getDate() - thresholdDays);
-  thresholdDate.setHours(0, 0, 0, 0);
+  const thresholdDate = computeThresholdDate(thresholdDays, now);
+  const thresholdMs = thresholdDate.getTime();
 
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-  end.setHours(23, 59, 59, 999);
+  const startMs = new Date(startDate + 'T00:00:00Z').getTime();
+  const endMs = new Date(endDate + 'T23:59:59Z').getTime();
 
-  // All data is old (>= threshold days)
-  if (end < thresholdDate) {
+  // All data is old (entire range is before the threshold)
+  if (endMs < thresholdMs) {
     return {
       recent: null,
       old: { start: startDate, end: endDate },
     };
   }
 
-  // All data is recent (< threshold days)
-  if (start >= thresholdDate) {
+  // All data is recent (entire range is at/after the threshold)
+  if (startMs >= thresholdMs) {
     return {
       recent: { start: startDate, end: endDate },
       old: null,
     };
   }
 
-  // Split at threshold
-  // IMPORTANT: The naming is intentionally "backwards" for compatibility with rest of codebase:
-  // - 'recent' = data source from startDate to threshold (queried from Analytics Engine)
-  // - 'old' = data source from threshold to endDate (queried from D1 if aggregation enabled)
-  // This is because Analytics Engine holds recent real-time data, D1 holds aggregated historical data.
+  // Spanning range: split at the threshold.
   const thresholdDateStr = thresholdDate.toISOString().slice(0, 10);
+
+  // old.end is the day BEFORE the threshold so the boundary day is not shared.
+  const oldEnd = new Date(thresholdMs);
+  oldEnd.setUTCDate(oldEnd.getUTCDate() - 1);
+  const oldEndStr = oldEnd.toISOString().slice(0, 10);
+
   return {
     recent: {
-      start: startDate,
-      end: thresholdDateStr,
-    },
-    old: {
       start: thresholdDateStr,
       end: endDate,
+    },
+    old: {
+      start: startDate,
+      end: oldEndStr,
     },
   };
 }
@@ -498,6 +521,24 @@ export function mergeReferrerData(
 }
 
 /**
+ * Pure predicate: should `date` (YYYY-MM-DD) be aggregated into D1?
+ *
+ * A date is eligible once it is at least `thresholdDays` old, i.e. on or before
+ * the threshold boundary. The comparison is inclusive (`<=`) so the daily cron's
+ * own target date — which is exactly `thresholdDays` ago — is accepted rather
+ * than skipped forever (previously a strict `<` made the cron a permanent no-op).
+ */
+export function shouldAggregateDateForThreshold(
+  date: string,
+  thresholdDays: number,
+  now: Date = new Date()
+): boolean {
+  const dateMs = new Date(date + 'T00:00:00Z').getTime();
+  const thresholdMs = computeThresholdDate(thresholdDays, now).getTime();
+  return dateMs <= thresholdMs;
+}
+
+/**
  * Check if a date should be aggregated (only aggregate data >= threshold days old)
  */
 export async function shouldAggregateDate(
@@ -505,13 +546,6 @@ export async function shouldAggregateDate(
   date: string
 ): Promise<boolean> {
   const thresholds = await getAnalyticsThresholdsOrDefault(env);
-  const thresholdDays = thresholds.threshold_days;
-  
-  const dateObj = new Date(date);
-  const thresholdDate = new Date();
-  thresholdDate.setDate(thresholdDate.getDate() - thresholdDays);
-  thresholdDate.setHours(0, 0, 0, 0);
-  
-  return dateObj < thresholdDate;
+  return shouldAggregateDateForThreshold(date, thresholds.threshold_days);
 }
 

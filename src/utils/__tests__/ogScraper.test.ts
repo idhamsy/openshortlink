@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { parseOgTags, isPubliclyFetchableUrl, fetchOgTags } from '../ogScraper';
+import { parseOgTags, isPubliclyFetchableUrl, fetchOgTags, parseIpv4Host, isPrivateIpv4 } from '../ogScraper';
 
 describe('parseOgTags', () => {
   it('extracts standard Open Graph tags', () => {
@@ -91,6 +91,66 @@ describe('isPubliclyFetchableUrl', () => {
     expect(isPubliclyFetchableUrl('http://172.16.0.1')).toBe(false);
     expect(isPubliclyFetchableUrl('http://169.254.169.254/latest/meta-data')).toBe(false);
     expect(isPubliclyFetchableUrl('http://metadata.google.internal')).toBe(false);
+  });
+
+  it('rejects integer / octal / hex encodings of private & loopback IPs (S4)', () => {
+    // 2130706433 === 127.0.0.1 (integer form)
+    expect(isPubliclyFetchableUrl('http://2130706433/')).toBe(false);
+    // 0x7f000001 === 127.0.0.1 (single hex form)
+    expect(isPubliclyFetchableUrl('http://0x7f000001/')).toBe(false);
+    // dotted octal / hex of 127.0.0.1
+    expect(isPubliclyFetchableUrl('http://0177.0.0.1/')).toBe(false);
+    expect(isPubliclyFetchableUrl('http://0x7f.0.0.1/')).toBe(false);
+    // cloud metadata 169.254.169.254 as a single integer (2852039166)
+    expect(isPubliclyFetchableUrl('http://2852039166/')).toBe(false);
+    // 2-part form: 10.65535 -> 10.0.255.255 (private 10/8)
+    expect(isPubliclyFetchableUrl('http://10.65535/')).toBe(false);
+  });
+
+  it('still accepts encoded PUBLIC IPs (does not over-block)', () => {
+    // 8.8.8.8 in integer form is 134744072 -> public, must remain fetchable
+    expect(isPubliclyFetchableUrl('http://134744072/')).toBe(true);
+    expect(isPubliclyFetchableUrl('http://8.8.8.8/')).toBe(true);
+  });
+});
+
+describe('parseIpv4Host (inet_aton-style encodings)', () => {
+  it('parses dotted decimal', () => {
+    expect(parseIpv4Host('127.0.0.1')).toEqual([127, 0, 0, 1]);
+    expect(parseIpv4Host('8.8.8.8')).toEqual([8, 8, 8, 8]);
+  });
+
+  it('parses single-integer form', () => {
+    expect(parseIpv4Host('2130706433')).toEqual([127, 0, 0, 1]);
+  });
+
+  it('parses hex and octal forms', () => {
+    expect(parseIpv4Host('0x7f000001')).toEqual([127, 0, 0, 1]);
+    expect(parseIpv4Host('0x7f.0.0.1')).toEqual([127, 0, 0, 1]);
+    expect(parseIpv4Host('0177.0.0.1')).toEqual([127, 0, 0, 1]);
+  });
+
+  it('parses 2- and 3-part shorthand forms', () => {
+    expect(parseIpv4Host('10.65535')).toEqual([10, 0, 255, 255]);
+    expect(parseIpv4Host('192.168.257')).toEqual([192, 168, 1, 1]);
+  });
+
+  it('returns null for non-IPv4 hostnames', () => {
+    expect(parseIpv4Host('example.com')).toBeNull();
+    expect(parseIpv4Host('v1.2.3.4')).toBeNull();
+    expect(parseIpv4Host('')).toBeNull();
+    expect(parseIpv4Host('1.2.3.4.5')).toBeNull();
+    // out-of-range octet
+    expect(parseIpv4Host('999.0.0.1')).toBeNull();
+  });
+
+  it('isPrivateIpv4 classifies ranges correctly', () => {
+    expect(isPrivateIpv4([127, 0, 0, 1])).toBe(true);
+    expect(isPrivateIpv4([10, 1, 2, 3])).toBe(true);
+    expect(isPrivateIpv4([169, 254, 169, 254])).toBe(true);
+    expect(isPrivateIpv4([172, 16, 0, 1])).toBe(true);
+    expect(isPrivateIpv4([172, 32, 0, 1])).toBe(false); // just outside 172.16-31
+    expect(isPrivateIpv4([8, 8, 8, 8])).toBe(false);
   });
 });
 

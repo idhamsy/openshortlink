@@ -138,6 +138,12 @@ export const componentsCss = `/* Cards */
 .data-table tr:hover { background: var(--table-row-hover); }
 .data-table tr:last-child td { border-bottom: none; }
 .data-table-container { background: var(--card-bg); padding: 1.5rem; border-radius: 16px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); overflow-x: auto; border: none; }
+/* U12: make the horizontally-scrolling data table more usable on phones —
+   tighter cells and a smaller min-width so less side-scrolling is needed. */
+@media (max-width: 768px) {
+  .data-table { min-width: 600px; font-size: 0.8125rem; }
+  .data-table th, .data-table td { padding: 0.625rem 0.75rem; }
+}
 
 /* Modals */
 .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); }

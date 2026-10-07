@@ -68,7 +68,12 @@ const baseLinkSchema = z.object({
   destination_url: z.string().url(),
   title: z.string().max(255).optional(),
   description: z.string().max(5000).optional(),
-  redirect_code: z.number().int().min(301).max(308).default(301),
+  // Only redirect status codes that carry a Location header and produce a working
+  // browser redirect. 303/304/305/306 would yield a blank/non-redirecting response,
+  // so restrict to the same whitelist the CSV import path uses.
+  redirect_code: z
+    .union([z.literal(301), z.literal(302), z.literal(307), z.literal(308)])
+    .default(301),
   tags: z.array(z.string()).max(10).optional(),
   category_id: z.string().optional(),
   expires_at: z.number().optional(),

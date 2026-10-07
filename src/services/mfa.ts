@@ -9,7 +9,14 @@
 
 import { TOTP } from 'otpauth';
 import type { Env } from '../types';
-import { generateId } from '../utils/id';
+import {
+  generateSessionToken,
+  sha256Hex,
+  isSha256Hash,
+  constantTimeEqualStr,
+  encryptSecret,
+  decryptSecret,
+} from '../utils/crypto';
 
 const ISSUER = 'OpenShort.link';
 const ALGORITHM = 'SHA1';
@@ -69,27 +76,62 @@ export function generateBackupCodes(): string[] {
   return codes;
 }
 
-// Verify backup code and remove it from list
-export function verifyBackupCode(backupCodesJson: string, code: string): { valid: boolean; remainingCodes: string[] } {
+// Hash a set of backup codes for storage (SHA-256). Backup codes are single-use
+// high-entropy values, so a fast hash is sufficient. Store the result; show the
+// plaintext codes to the user only once (at generation time).
+export async function hashBackupCodes(codes: string[]): Promise<string[]> {
+  return Promise.all(codes.map(code => sha256Hex(code)));
+}
+
+// Verify backup code and remove it from the list.
+// Storage may contain either sha256Hex() hashes (new) or legacy plaintext codes;
+// both are supported. Comparison is constant-time and does not early-exit on the
+// matching entry (A10). Returns the remaining stored entries (still hashed).
+export async function verifyBackupCode(
+  backupCodesJson: string,
+  code: string
+): Promise<{ valid: boolean; remainingCodes: string[] }> {
   try {
     const codes = JSON.parse(backupCodesJson) as string[];
-    const index = codes.indexOf(code);
+    const hashedInput = await sha256Hex(code);
 
-    if (index === -1) {
+    let matchedIndex = -1;
+    for (let i = 0; i < codes.length; i++) {
+      const stored = codes[i];
+      const isMatch = isSha256Hash(stored)
+        ? constantTimeEqualStr(stored, hashedInput)
+        : constantTimeEqualStr(stored, code); // legacy plaintext entry
+      if (isMatch) {
+        matchedIndex = i;
+      }
+    }
+
+    if (matchedIndex === -1) {
       return { valid: false, remainingCodes: codes };
     }
 
-    // Remove used code
-    const remaining = codes.filter((_, i) => i !== index);
+    const remaining = codes.filter((_, i) => i !== matchedIndex);
     return { valid: true, remainingCodes: remaining };
   } catch {
     return { valid: false, remainingCodes: [] };
   }
 }
 
+// Encrypt an MFA secret for storage at rest (AES-GCM keyed off SETUP_TOKEN).
+export async function encryptMFASecret(env: Env, secret: string): Promise<string> {
+  return encryptSecret(secret, env.SETUP_TOKEN);
+}
+
+// Decrypt a stored MFA secret. Legacy plaintext secrets are returned unchanged.
+export async function decryptMFASecret(env: Env, stored: string): Promise<string> {
+  return decryptSecret(stored, env.SETUP_TOKEN);
+}
+
 // Store temporary MFA verification token (for login flow)
 export async function createMFATempToken(env: Env, userId: string): Promise<string> {
-  const token = generateId();
+  // Use a 32-byte cryptographically random token (A9) instead of generateId(),
+  // which is timestamp + ~40 bits of entropy.
+  const token = generateSessionToken();
   const key = `mfa_temp:${token}`;
   const data = {
     user_id: userId,
