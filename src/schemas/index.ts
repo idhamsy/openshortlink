@@ -19,6 +19,7 @@ export * from './taxonomy';
 export * from './apiKey';
 export * from './settings';
 export * from './user';
+export * from './pixel';
 
 // ============================================================================
 // Shared Utilities

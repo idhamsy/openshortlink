@@ -10,11 +10,11 @@
 import type { Env, Link, CachedLink, Domain } from '../types';
 import { getCachedLink, setCachedLink } from './cache';
 import { getLinkBySlug, incrementClickCount } from '../db/links';
-import { getGeoRedirects, getDeviceRedirects, getCityRedirects, getOsRedirects, type LinkGeoRedirect, type LinkDeviceRedirect, type LinkCityRedirect, type LinkOsRedirect } from '../db/linkRedirects';
-import { getOgMeta } from '../db/linkOgMeta';
+import { buildCachedLink } from './linkService';
 import { trackClick, parseUserAgent, extractUtmParams, hashIpAddress, formatDateForGrouping, extractReferrerDomain } from './analytics';
 import { isBot } from '../utils/bots';
 import { renderOgPreviewPage } from '../views/ogPreview';
+import { renderPixelInterstitial, pixelInterstitialCsp, isHttpUrl, generateNonce } from '../views/pixelInterstitial';
 
 /**
  * Merges query parameters from the request URL into the destination URL.
@@ -111,78 +111,12 @@ export async function handleRedirect(
       return new Response('Link is not available', { status: 403 });
     }
 
-    // Always fetch all redirect rules from the DB on a (re)build. We deliberately
-    // do NOT reuse redirect data from a stale cache entry: an older entry may
-    // predate the city/os redirect feature and would silently drop those rules,
-    // serving the wrong destination. A stale rebuild is rare (once per old entry,
-    // then rewritten fresh), so the extra reads are negligible.
-    let geoRedirects: LinkGeoRedirect[];
-    let deviceRedirects: LinkDeviceRedirect[];
-    let cityRedirects: LinkCityRedirect[];
-    let osRedirects: LinkOsRedirect[];
-    let ogMeta: Awaited<ReturnType<typeof getOgMeta>>;
-    [geoRedirects, deviceRedirects, cityRedirects, osRedirects, ogMeta] = await Promise.all([
-      getGeoRedirects(env, link.id),
-      getDeviceRedirects(env, link.id),
-      getCityRedirects(env, link.id),
-      getOsRedirects(env, link.id),
-      getOgMeta(env, link.id)
-    ]);
-
-    // Build complete cache object (with all required fields)
-    // Ensure link_id is always set (validated above, but double-check for safety)
-    const linkId = link.id;
-    if (!linkId) {
-      console.error('[REDIRECT] ❌ CRITICAL: link.id is missing after validation!', { domain: domain.domain_name, slug });
-      return new Response('Internal server error: Link data invalid', { status: 500 });
-    }
-
-    cached = {
-      destination_url: link.destination_url,
-      redirect_code: link.redirect_code,
-      status: link.status,
-      expires_at: link.expires_at,
-      password_hash: link.password_hash,
-      link_id: linkId, // Always include link_id (validated above)
-      geo_redirects:
-        geoRedirects.length > 0
-          ? Object.fromEntries(geoRedirects.map((r) => [r.country_code, r.destination_url]))
-          : undefined,
-      device_redirects:
-        deviceRedirects.length > 0
-          ? {
-            desktop: deviceRedirects.find((r) => r.device_type === 'desktop')?.destination_url,
-            mobile: deviceRedirects.find((r) => r.device_type === 'mobile')?.destination_url,
-            tablet: deviceRedirects.find((r) => r.device_type === 'tablet')?.destination_url,
-          }
-          : undefined,
-      city_redirects:
-        cityRedirects.length > 0
-          ? cityRedirects.map((r) => ({ city_name: r.city_name, destination_url: r.destination_url }))
-          : undefined,
-      os_redirects:
-        osRedirects.length > 0
-          ? {
-            android: osRedirects.find((r) => r.os === 'android')?.destination_url,
-            ios: osRedirects.find((r) => r.os === 'ios')?.destination_url,
-          }
-          : undefined,
-      og_meta: ogMeta
-        ? {
-          og_title: ogMeta.og_title,
-          og_description: ogMeta.og_description,
-          og_image: ogMeta.og_image,
-          og_type: ogMeta.og_type,
-          twitter_card: ogMeta.twitter_card,
-        }
-        : undefined,
-      route: link.metadata ? (() => {
-        try { return JSON.parse(link.metadata).route; } catch { return undefined; }
-      })() : undefined,
-      domain_routing_path: domain.routing_path,
-    };
+    // Always rebuild from the DB via the shared builder. We deliberately do NOT reuse
+    // data from a stale cache entry (it may predate newer per-link features), and we do
+    // NOT hand-build the object here: a second copy of the builder already drifted once
+    // (og_meta was missing from it, so previews vanished after a cache eviction).
+    cached = await buildCachedLink(env, link, domain);
     await setCachedLink(env, domain.domain_name, slug, cached);
-    // DEBUG: console.log('[REDIRECT] Cache updated with all required fields, link_id:', linkId);
   }
 
   // Check if link is expired (from cache)
@@ -307,6 +241,26 @@ export async function handleRedirect(
 
   // DEBUG: console.log('[REDIRECT] Returning redirect response to:', finalDestinationUrl);
 
+  // Pixels configured + a real human -> serve an interstitial that fires the pixels, then
+  // JS-redirects. Bots skip it (no point firing pixels for a crawler). Only for http(s)
+  // destinations: z.string().url() accepts javascript:/data:, which a 301 Location never
+  // executes but location.replace() would — on this (possibly dashboard-shared) origin.
+  if (cached.pixels && cached.pixels.length > 0 && !isBot(ogUserAgent) && isHttpUrl(finalDestinationUrl)) {
+    const nonce = generateNonce();
+    return new Response(renderPixelInterstitial(cached.pixels, finalDestinationUrl, nonce), {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        // Per-visitor page; never cache it anywhere.
+        'Cache-Control': 'private, no-store, max-age=0',
+        // Own CSP: the default one (script-src 'self', connect-src 'self') would block the
+        // pixel loaders and beacons. securityHeaders keeps a CSP the response already set.
+        'Content-Security-Policy': pixelInterstitialCsp(nonce),
+        'Vary': 'User-Agent',
+      },
+    });
+  }
+
   // Create redirect response with cache control headers
   // We need to create a new Response because Response.redirect() returns an immutable response
   const redirectCode = cached.redirect_code as 301 | 302 | 307 | 308;
@@ -374,9 +328,10 @@ export function extractGeoFromRequest(request: Request): { country: string; city
  * vary on CF-IPCity so cities don't share each other's cached destination.
  */
 export function buildVaryHeader(cached: CachedLink): string | undefined {
-  // og_meta included: a crawler gets a 200 preview while a human gets this 301, so the
-  // redirect must also vary on User-Agent to keep shared caches from crossing them.
-  if (!(cached.geo_redirects || cached.device_redirects || cached.city_redirects || cached.os_redirects || cached.og_meta)) {
+  // og_meta / pixels included: crawlers and humans get different responses (200 preview vs
+  // 301, or 301 vs 200 interstitial), so the redirect must vary on User-Agent to keep shared
+  // caches from crossing them.
+  if (!(cached.geo_redirects || cached.device_redirects || cached.city_redirects || cached.os_redirects || cached.og_meta || cached.pixels)) {
     return undefined;
   }
   const varyValues = ['Accept-Language', 'CF-IPCountry', 'User-Agent'];

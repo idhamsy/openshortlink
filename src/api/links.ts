@@ -45,9 +45,12 @@ import {
   saveLinkRedirects,
   type RedirectData,
 } from '../db/linkRedirects';
-import { getOgMeta, upsertOgMeta, clearOgMeta } from '../db/linkOgMeta';
+import { getOgMeta, upsertOgMeta } from '../db/linkOgMeta';
+import { getLinkPixels } from '../db/linkPixels';
 import { fetchOgTags, isPubliclyFetchableUrl } from '../utils/ogScraper';
-import { buildCachedLink } from '../services/linkService';
+import { buildCachedLink, saveLinkExtras } from '../services/linkService';
+import { resolveLinkPixelIds, PixelError } from '../services/pixelLibrary';
+import { parseBulkRequest, runBulk } from '../services/bulkLinks';
 import { generateId, generateSlug } from '../utils/id';
 import { isValidUrl, isValidSlug, normalizeUrl, sanitizeHtml, sanitizeSearchInput, validateNumericBoundary, isReservedSlug } from '../utils/validation';
 import { detectCountryCode, getCountryName } from '../utils/countryMappings';
@@ -61,6 +64,12 @@ import { getEffectiveLinkRoute } from '../utils/route';
 import { createLinkSchema, updateLinkSchema, ogFetchSchema } from '../schemas';
 
 const linksRouter = new Hono<{ Bindings: Env }>();
+
+/** Translate pixel-library rule violations into HTTP errors. */
+function rethrowPixelError(error: unknown): never {
+  if (error instanceof PixelError) throw new HTTPException(error.status as 400, { message: error.message });
+  throw error;
+}
 
 // Schemas imported from ../schemas
 
@@ -465,12 +474,13 @@ linksRouter.get('/:id', authOrApiKeyMiddleware, async (c) => {
   }
 
   // Get geo and device redirects in parallel
-  const [geoRedirects, deviceRedirects, cityRedirects, osRedirects, ogMeta] = await Promise.all([
+  const [geoRedirects, deviceRedirects, cityRedirects, osRedirects, ogMeta, pixels] = await Promise.all([
     getGeoRedirects(c.env, id),
     getDeviceRedirects(c.env, id),
     getCityRedirects(c.env, id),
     getOsRedirects(c.env, id),
-    getOgMeta(c.env, id)
+    getOgMeta(c.env, id),
+    getLinkPixels(c.env, id)
   ]);
 
   return c.json({
@@ -482,6 +492,7 @@ linksRouter.get('/:id', authOrApiKeyMiddleware, async (c) => {
       city_redirects: cityRedirects,
       os_redirects: osRedirects,
       og_meta: ogMeta,
+      pixels,
     },
   });
 });
@@ -622,6 +633,11 @@ linksRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links'),
     metadata = JSON.stringify(metadataObj);
   }
 
+  // Resolve retargeting pixels BEFORE creating the link so a cross-domain id fails cleanly.
+  // Omitted -> the domain's default pixels.
+  const pixelIds = await resolveLinkPixelIds(c.env, validated.domain_id, validated.pixel_ids, { applyDefaults: true })
+    .catch(rethrowPixelError);
+
   // Create link. Translate a UNIQUE(domain_id, slug) race (check-then-insert window)
   // into a clean 409 Conflict instead of a raw 500.
   let link: Link;
@@ -668,17 +684,23 @@ linksRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links'),
     await upsertOgMeta(c.env, link.id, validated.og_meta);
   }
 
+  // Attach library pixels (explicit list or the domain's defaults)
+  if (pixelIds && pixelIds.length > 0) {
+    await saveLinkExtras(c.env, link.id, { pixel_ids: pixelIds });
+  }
+
   // Build and set cache
   const cachedLink = await buildCachedLink(c.env, link, domain);
   await setCachedLink(c.env, domain.domain_name, link.slug, cachedLink);
 
   // Fetch fresh data for response
-  const [geoRedirects, deviceRedirects, cityRedirects, osRedirects, ogMeta] = await Promise.all([
+  const [geoRedirects, deviceRedirects, cityRedirects, osRedirects, ogMeta, pixels] = await Promise.all([
     getGeoRedirects(c.env, link.id),
     getDeviceRedirects(c.env, link.id),
     getCityRedirects(c.env, link.id),
     getOsRedirects(c.env, link.id),
     getOgMeta(c.env, link.id),
+    getLinkPixels(c.env, link.id),
   ]);
 
   // Get link with tags
@@ -691,6 +713,7 @@ linksRouter.post('/', authOrApiKeyMiddleware, requirePermission('create_links'),
     city_redirects: cityRedirects,
     os_redirects: osRedirects,
     og_meta: ogMeta,
+    pixels,
   };
 
   return c.json({ success: true, data: linkWithTags }, 201);
@@ -786,6 +809,10 @@ linksRouter.put('/:id', authOrApiKeyMiddleware, requireLinkAccess('edit'), valid
     updates.metadata = JSON.stringify({ ...currentMetadata, ...validated.metadata });
   }
 
+  // Validate pixel ids against the link's own domain before writing anything.
+  const pixelIds = await resolveLinkPixelIds(c.env, existingLink.domain_id, validated.pixel_ids, { applyDefaults: false })
+    .catch(rethrowPixelError);
+
   await updateLink(c.env, id, updates);
 
   // Update tags if provided
@@ -818,15 +845,9 @@ linksRouter.put('/:id', authOrApiKeyMiddleware, requireLinkAccess('edit'), valid
     await saveLinkRedirects(c.env, id, { os_redirects: validated.os_redirects });
   }
 
-  // Update Open Graph metadata if provided. An empty/cleared object means "remove".
-  if (validated.og_meta !== undefined) {
-    const hasAny = validated.og_meta.og_title || validated.og_meta.og_description || validated.og_meta.og_image;
-    if (hasAny) {
-      await upsertOgMeta(c.env, id, validated.og_meta);
-    } else {
-      await clearOgMeta(c.env, id);
-    }
-  }
+  // Update Open Graph metadata and retargeting pixels if provided (an empty og_meta or
+  // an empty pixel_ids array removes them).
+  await saveLinkExtras(c.env, id, { og_meta: validated.og_meta, pixel_ids: pixelIds });
 
   // Get updated link with tags and category
   const updatedLink = await getLinkById(c.env, id);
@@ -855,12 +876,13 @@ linksRouter.put('/:id', authOrApiKeyMiddleware, requireLinkAccess('edit'), valid
   }
 
   // Fetch fresh data for response
-  const [geoRedirects, deviceRedirects, cityRedirects, osRedirects, ogMeta] = await Promise.all([
+  const [geoRedirects, deviceRedirects, cityRedirects, osRedirects, ogMeta, pixels] = await Promise.all([
     getGeoRedirects(c.env, id),
     getDeviceRedirects(c.env, id),
     getCityRedirects(c.env, id),
     getOsRedirects(c.env, id),
     getOgMeta(c.env, id),
+    getLinkPixels(c.env, id),
   ]);
 
   const linkWithTags = {
@@ -872,6 +894,7 @@ linksRouter.put('/:id', authOrApiKeyMiddleware, requireLinkAccess('edit'), valid
     city_redirects: cityRedirects,
     os_redirects: osRedirects,
     og_meta: ogMeta,
+    pixels,
   };
 
   return c.json({ success: true, data: linkWithTags });
@@ -917,157 +940,16 @@ linksRouter.delete('/:id', authOrApiKeyMiddleware, requireLinkAccess('delete'), 
   return c.json({ success: true, message: 'Link deleted' });
 });
 
-// Bulk operations
+// Bulk operations (logic lives in services/bulkLinks.ts)
 linksRouter.post('/bulk', authOrApiKeyMiddleware, requirePermission('edit_links'), async (c) => {
   const body = await c.req.json();
-  const { action, link_ids, updates } = body;
-
-  if (!Array.isArray(link_ids) || link_ids.length === 0) {
-    throw new HTTPException(400, { message: 'link_ids array required' });
+  const parsed = parseBulkRequest(body);
+  if (!parsed.ok) {
+    throw new HTTPException(400, { message: parsed.message });
   }
-
-  // Check API key domain scoping / session-user ownership
   const apiKey = (c as any).get?.('apiKey') as ApiKeyContext | undefined;
   const user = (c as any).get?.('user') as User | undefined;
-
-  const results = [];
-
-  if (action === 'delete') {
-    for (const id of link_ids) {
-      const link = await getLinkById(c.env, id);
-      if (link) {
-        // Enforce ownership for session users (mirror requireLinkAccess on single-item routes).
-        // Without this, a tenant could delete any other tenant's link by ID.
-        if (user && !apiKey) {
-          const hasAccess = await canAccessDomain(c.env, user, link.domain_id);
-          if (!hasAccess) {
-            results.push({ id, success: false, error: 'Access denied. You do not have access to this domain.' });
-            continue;
-          }
-        }
-
-        // Check API key domain scoping
-        if (apiKey && apiKey.domain_ids && apiKey.domain_ids.length > 0) {
-          if (!apiKey.domain_ids.includes(link.domain_id)) {
-            results.push({ id, success: false, error: 'Domain not on scope' });
-            continue;
-          }
-        }
-
-        await deleteLink(c.env, id, false);
-        const domain = await getDomainById(c.env, link.domain_id);
-        if (domain) {
-          await deleteCachedLink(c.env, domain.domain_name, link.slug);
-        }
-        results.push({ id, success: true });
-      } else {
-        results.push({ id, success: false, error: 'Link not found' });
-      }
-    }
-  } else if (action === 'update' && updates) {
-    const validated = updateLinkSchema.partial().parse(updates);
-    // Extract tags, category_id, route, metadata, geo_redirects, device_redirects, city_redirects, and os_redirects (they're handled separately)
-    const { tags, category_id, route, metadata: metadataObj, geo_redirects, device_redirects, city_redirects, os_redirects, ...linkUpdates } = validated;
-
-    for (const id of link_ids) {
-      const link = await getLinkById(c.env, id);
-      if (link) {
-        // Enforce ownership for session users (mirror requireLinkAccess on single-item routes).
-        // Without this, a tenant could repoint any other tenant's link by ID.
-        if (user && !apiKey) {
-          const hasAccess = await canAccessDomain(c.env, user, link.domain_id);
-          if (!hasAccess) {
-            results.push({ id, success: false, error: 'Access denied. You do not have access to this domain.' });
-            continue;
-          }
-        }
-
-        // Check API key domain scoping
-        if (apiKey && apiKey.domain_ids && apiKey.domain_ids.length > 0) {
-          if (!apiKey.domain_ids.includes(link.domain_id)) {
-            results.push({ id, success: false, error: 'Domain not on scope' });
-            continue;
-          }
-        }
-
-        // Prepare metadata updates. `route` is handled independently of metadata/category
-        // so a route-only bulk update is still persisted. `category_id` is written to its
-        // dedicated column (below), NOT into metadata, so it shows up in list/filter queries.
-        let finalMetadata: string | undefined = undefined;
-        if (metadataObj !== undefined || route !== undefined) {
-          const currentMetadata = link.metadata ? JSON.parse(link.metadata) : {};
-          const updatedMetadata = metadataObj ? { ...currentMetadata, ...metadataObj } : { ...currentMetadata };
-          if (route !== undefined) {
-            // Validate the route against the link's domain, matching the single-item PUT path.
-            const domain = await getDomainById(c.env, link.domain_id);
-            if (domain && domain.routes && domain.routes.includes(route)) {
-              updatedMetadata.route = route;
-            } else {
-              results.push({ id, success: false, error: 'Invalid route for domain' });
-              continue;
-            }
-          }
-          finalMetadata = JSON.stringify(updatedMetadata);
-        }
-
-        // Build column updates: plain link fields plus the dedicated category_id column.
-        const columnUpdates: Parameters<typeof updateLink>[2] = { ...linkUpdates };
-        if (category_id !== undefined) {
-          columnUpdates.category_id = category_id;
-        }
-
-        // Update link fields (excluding tags and redirects which are handled separately)
-        if (Object.keys(columnUpdates).length > 0 || finalMetadata !== undefined) {
-          await updateLink(c.env, id, { ...columnUpdates, ...(finalMetadata !== undefined ? { metadata: finalMetadata } : {}) });
-        }
-
-        // Handle tags separately if provided
-        if (tags !== undefined) {
-          await setLinkTags(c.env, id, tags);
-        }
-
-        // Handle redirects if provided
-        const redirectsToSave: RedirectData = {};
-
-        if (geo_redirects !== undefined) {
-          await clearAllGeoRedirects(c.env, id);
-          redirectsToSave.geo_redirects = geo_redirects;
-        }
-
-        if (device_redirects !== undefined) {
-          await clearAllDeviceRedirects(c.env, id);
-          redirectsToSave.device_redirects = device_redirects;
-        }
-
-        if (city_redirects !== undefined) {
-          await clearAllCityRedirects(c.env, id);
-          redirectsToSave.city_redirects = city_redirects;
-        }
-
-        if (os_redirects !== undefined) {
-          await clearAllOsRedirects(c.env, id);
-          redirectsToSave.os_redirects = os_redirects;
-        }
-
-        await saveLinkRedirects(c.env, id, redirectsToSave);
-
-        // Rebuild cache with updated data
-        const domain = await getDomainById(c.env, link.domain_id);
-        if (domain) {
-          // Get updated link data
-          const updatedLink = await getLinkById(c.env, id);
-          if (updatedLink) {
-            const cachedLink = await buildCachedLink(c.env, updatedLink, domain);
-            await setCachedLink(c.env, domain.domain_name, link.slug, cachedLink);
-          }
-        }
-        results.push({ id, success: true });
-      } else {
-        results.push({ id, success: false, error: 'Link not found' });
-      }
-    }
-  }
-
+  const results = await runBulk(c.env, { user, apiKey }, parsed.request);
   return c.json({ success: true, data: results });
 });
 

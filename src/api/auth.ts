@@ -289,7 +289,7 @@ authRouter.post('/logout', optionalAuth, async (c) => {
   const refreshToken = c.req.header('Cookie')?.split(';').find(c => c.trim().startsWith('refresh_token='))?.split('=')[1];
   if (refreshToken) {
     await deleteRefreshToken(c.env, refreshToken);
-    c.header('Set-Cookie', `refresh_token=; HttpOnly; ${secureFlag} SameSite=Strict; Path=/; Max-Age=0`);
+    c.header('Set-Cookie', `refresh_token=; HttpOnly; ${secureFlag} SameSite=Strict; Path=/; Max-Age=0`, { append: true });
   }
 
   // Log logout
@@ -379,7 +379,7 @@ authRouter.post('/refresh', createRateLimit({
   const isProduction = c.env.ENVIRONMENT === 'production';
   const secureFlag = isProduction ? 'Secure;' : '';
   c.header('Set-Cookie', `session_token=${accessToken}; HttpOnly; ${secureFlag} SameSite=Strict; Path=/; Max-Age=${1 * 60 * 60}`);
-  c.header('Set-Cookie', `refresh_token=${newRefreshToken}; HttpOnly; ${secureFlag} SameSite=Strict; Path=/; Max-Age=${30 * 24 * 60 * 60}`);
+  c.header('Set-Cookie', `refresh_token=${newRefreshToken}; HttpOnly; ${secureFlag} SameSite=Strict; Path=/; Max-Age=${30 * 24 * 60 * 60}`, { append: true });
 
   return c.json({
     success: true,
@@ -764,7 +764,7 @@ authRouter.post('/mfa/verify', createRateLimit({
   const isProduction = c.env.ENVIRONMENT === 'production';
   const secureFlag = isProduction ? 'Secure;' : '';
   c.header('Set-Cookie', `session_token=${accessToken}; HttpOnly; ${secureFlag} SameSite=Strict; Path=/; Max-Age=${1 * 60 * 60}`);
-  c.header('Set-Cookie', `refresh_token=${refreshToken}; HttpOnly; ${secureFlag} SameSite=Strict; Path=/; Max-Age=${30 * 24 * 60 * 60}`);
+  c.header('Set-Cookie', `refresh_token=${refreshToken}; HttpOnly; ${secureFlag} SameSite=Strict; Path=/; Max-Age=${30 * 24 * 60 * 60}`, { append: true });
 
   return c.json({
     success: true,

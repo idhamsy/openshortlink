@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.11.0] - 2026-10-07
+
+### ⚠️ Behaviour changes to check before upgrading
+- **CSV import: an existing slug is now skipped by default, not reported as an error.** New `on_existing` field: `skip` (default) / `error` / `update`. In `skip` mode the row is left untouched and counted as `skipped` with `success: true`. **Scripts that detected duplicates through `errors > 0` or a row's `success: false` must send `on_existing=error`** to keep the old behaviour. Nothing is ever overwritten unless you send `on_existing=update`.
+- **CSV import summary:** `data.success` now counts `created + updated + skipped` (it used to count created links only). Use the new `created`, `updated` and `skipped` counts; each result row carries `action` (`created` / `updated` / `skipped` / `error`).
+- **Bulk (`POST /links/bulk`):** at most 100 entries per request (both formats); an unknown or missing `action`, empty `updates`, or `updates` with only unrecognised fields now return 400.
+
+### Added
+- **Retargeting pixel library**: per-domain pixel library managed on a new Pixels page (`/pixels` API), a pixel picker on links (`pixel_ids`), default pixels per domain (applied on link create and CSV import when `pixel_ids` is not sent), and a redirect interstitial that fires the pixels (served with a nonce-based CSP). Links without pixels redirect exactly as before. Link responses include `pixels`.
+- **CSV import `on_existing`** (see above). In `update` mode blank cells leave the existing value unchanged and tags in a non-blank cell replace the link's tags. Each row is written atomically.
+- **Bulk `items` format**: `POST /links/bulk` accepts an `items` array where each item targets a link by `id` or by `domain_id` + `slug`, with per-item `updates`. Delete by slug is supported. The new format returns `{index, id, slug, success, error?}` per item; the legacy `link_ids` format is unchanged apart from the limits above.
+
+### Fixed
+- Editing a link (`PUT /links/:id` or bulk update) no longer resets its `redirect_code` to 301 when `redirect_code` is not sent. Links already reset by earlier versions keep 301.
+- MFA sign-in and `/auth/refresh` now set both the `session_token` and `refresh_token` cookies (only the last one was kept), and logout clears both. The dashboard was unaffected (it sends its token as a header).
+- Importing a slug that belongs to a deleted link gives a clear message ("restore or hard-delete it first") instead of a database error.
+- Dashboard: checkbox layout, red danger buttons, a single domain-selector handler, import preview/slug-prefix consistency, and true CSV row numbers in import errors.
+
+### Changed
+- Bulk destination URLs are validated (normalized and checked for redirect loops); bulk titles/descriptions are sanitized like single-link edits.
+- Bulk and import updates invalidate the link cache instead of rebuilding it (the next click rebuilds it).
+- Static asset version bumped to `v5`.
+
+### Upgrade notes
+- New DB migration `0023_add_pixel_library.sql` (adds `pixel_library` and `link_pixels`; no existing data is changed). **Deploy with `npm run deploy`** (runs migrations). With `npm run deploy:only` the new code fails on link reads and cache-miss redirects until the migration is applied.
+- Added a regression test for cross-domain access in bulk and import (GHSA-9f2c-cqrr-gcqp).
+
+---
+
 ## [0.10.2] - 2026-10-07
 
 Follow-up to 0.10.1: safer MFA recovery and clearer upgrade notes. Recommended for everyone on 0.10.1.
