@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.10.2] - 2026-10-07
+
+Follow-up to 0.10.1: safer MFA recovery and clearer upgrade notes. Recommended for everyone on 0.10.1.
+
+### Fixed
+- **MFA no longer fails with a server error when `SETUP_TOKEN` was changed or removed.** Since 0.10.1, MFA secrets are encrypted with `SETUP_TOKEN`; if it later changes, login now answers with a clear message instead of a 500. **Backup codes keep working** in that case, and **Settings → Disable MFA** now accepts your account password as well as an MFA code (the API already did).
+- **Password change**: the dashboard now explains that your sessions (including the current one) were signed out and sends you to the sign-in page, instead of showing "success" and then logging you out on the next click.
+
+### Added
+- **Admin MFA reset**: `POST /users/:id/mfa/reset` (admin/owner) and a **Reset MFA** button in Users. Clears the user's MFA so they can sign in with their password and enrol again. Not for your own account (use Settings → Disable MFA); only an owner can reset another owner. Logged in the audit log.
+- `DEPLOYMENT.md`: **keep `SETUP_TOKEN` after setup once users have MFA**, and how to recover if it was changed (backup code, admin reset, or a D1 command for a locked-out sole owner).
+
+### Changed in 0.10.1 (upgrade notes that were missing from that release)
+- `DELETE /domains/:id` now only **deactivates** (idempotent). It used to toggle; re-activate with `PUT /domains/:id` `{ "status": "active" }`.
+- `POST /auth/token` returns 404 when `ENVIRONMENT = "production"`. Use `/auth/login` and `/auth/refresh`.
+- `POST /auth/mfa/disable` requires `mfa_code` or `password` in the body.
+- `POST /auth/mfa/verify` is rate-limited (5/min per IP) and a temporary MFA token is revoked after 5 failed attempts.
+- Global tags/categories (no `domain_id`) can only be created, edited or deleted by admins/owners.
+- `redirect_code` on link create/update accepts only 301, 302, 307, 308. Existing links stored with another code keep redirecting.
+- Changing your password signs out the current session and every other session created on 0.10.1 or later. Sessions created before upgrading to 0.10.1 carry no issue time and stay valid until they expire (up to 7 days).
+- Bot traffic no longer increments click counts; city/country rules use `request.cf` only (client `cf-*` headers are ignored).
+- Password hashes and new API keys use a versioned format (upgraded on next login). Rolling back to 0.10.0 or earlier after upgrading makes those users/keys unable to authenticate.
+
+---
+
 ## [0.10.1] - 2026-10-07
 
 Security release. **All deployments should upgrade.**

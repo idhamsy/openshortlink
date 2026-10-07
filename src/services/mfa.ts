@@ -127,6 +127,21 @@ export async function decryptMFASecret(env: Env, stored: string): Promise<string
   return decryptSecret(stored, env.SETUP_TOKEN);
 }
 
+export const MFA_SECRET_UNREADABLE =
+  'Your MFA secret can no longer be read (SETUP_TOKEN was changed or removed on this server). ' +
+  'Sign in with a backup code, or ask an admin to reset your MFA.';
+
+// Like decryptMFASecret, but returns null instead of throwing when the secret can't be
+// decrypted (SETUP_TOKEN rotated/removed after enrolment), so callers can respond cleanly.
+export async function tryDecryptMFASecret(env: Env, stored: string): Promise<string | null> {
+  try {
+    return await decryptMFASecret(env, stored);
+  } catch (err) {
+    console.error('[MFA] cannot decrypt stored MFA secret:', err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
 // Store temporary MFA verification token (for login flow)
 export async function createMFATempToken(env: Env, userId: string): Promise<string> {
   // Use a 32-byte cryptographically random token (A9) instead of generateId(),

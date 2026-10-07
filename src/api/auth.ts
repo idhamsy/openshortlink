@@ -17,7 +17,7 @@ import { createSession, deleteSession, getRefreshToken, deleteRefreshToken, coun
 import { createRateLimit } from '../middleware/rateLimit';
 import { validateJson } from '../middleware/validate';
 import { optionalAuth, authMiddleware } from '../middleware/auth';
-import { generateMFASecret, verifyMFACode, generateBackupCodes, verifyBackupCode, hashBackupCodes, encryptMFASecret, decryptMFASecret, createMFATempToken, getMFATempToken, deleteMFATempToken } from '../services/mfa';
+import { generateMFASecret, verifyMFACode, generateBackupCodes, verifyBackupCode, hashBackupCodes, encryptMFASecret, tryDecryptMFASecret, MFA_SECRET_UNREADABLE, createMFATempToken, getMFATempToken, deleteMFATempToken } from '../services/mfa';
 import { updateUser } from '../db/users';
 import { logAuditEvent, getAuditLogs, getIpAddress, getUserAgent, type AuditEventType, cleanupOldAuditLogs } from '../services/audit';
 import { getSessionTokenFromRequest } from '../services/session';
@@ -551,7 +551,10 @@ authRouter.post('/mfa/verify-setup', authMiddleware, validateJson(mfaVerifySetup
   }
 
   // A2: decrypt the stored secret (legacy plaintext secrets pass through).
-  const secret = await decryptMFASecret(c.env, fullUser.mfa_secret);
+  const secret = await tryDecryptMFASecret(c.env, fullUser.mfa_secret);
+  if (secret === null) {
+    throw new HTTPException(409, { message: 'Pending MFA setup can no longer be read (SETUP_TOKEN changed). Call /mfa/setup again.' });
+  }
   const isValid = verifyMFACode(secret, validated.code);
 
   if (!isValid) {
@@ -601,9 +604,11 @@ authRouter.post('/mfa/disable', authMiddleware, async (c) => {
 
   let reauthed = false;
   if (mfaCode && fullUser.mfa_secret) {
-    const secret = await decryptMFASecret(c.env, fullUser.mfa_secret);
-    reauthed = verifyMFACode(secret, mfaCode);
-  } else if (password && fullUser.password_hash) {
+    const secret = await tryDecryptMFASecret(c.env, fullUser.mfa_secret);
+    reauthed = secret !== null && verifyMFACode(secret, mfaCode);
+  }
+  // Password also works (and is the way out when the MFA secret is unreadable).
+  if (!reauthed && password && fullUser.password_hash) {
     reauthed = await verifyPassword(password, fullUser.password_hash);
   }
 
@@ -672,11 +677,15 @@ authRouter.post('/mfa/verify', createRateLimit({
   }
 
   // A2: decrypt the stored secret (legacy plaintext secrets pass through).
-  const secret = await decryptMFASecret(c.env, user.mfa_secret);
+  // Backup codes are hashed (not encrypted), so they still work if the secret is unreadable.
+  const secret = await tryDecryptMFASecret(c.env, user.mfa_secret);
   let isValid = false;
 
   // Try TOTP code first
   if (validated.code && !validated.backup_code) {
+    if (secret === null) {
+      throw new HTTPException(409, { message: MFA_SECRET_UNREADABLE });
+    }
     isValid = verifyMFACode(secret, validated.code);
   } else if (validated.backup_code) {
     // Try backup code (stored hashed; legacy plaintext still supported)
@@ -854,7 +863,10 @@ authRouter.post('/mfa/regenerate-backup-codes', authMiddleware, async (c) => {
   }
 
   // A2: decrypt the stored secret before verifying (legacy plaintext passes through).
-  const regenSecret = await decryptMFASecret(c.env, fullUser.mfa_secret);
+  const regenSecret = await tryDecryptMFASecret(c.env, fullUser.mfa_secret);
+  if (regenSecret === null) {
+    throw new HTTPException(409, { message: MFA_SECRET_UNREADABLE });
+  }
   const isValid = verifyMFACode(regenSecret, mfaCode);
   if (!isValid) {
     throw new HTTPException(401, { message: 'Invalid MFA code' });

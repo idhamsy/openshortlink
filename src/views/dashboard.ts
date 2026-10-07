@@ -6863,9 +6863,11 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
               })
             });
             
-            successDiv.textContent = 'Password changed successfully!';
+            // The server signs out every session (including this one) on a password change.
+            successDiv.textContent = 'Password changed. For security you have been signed out — redirecting to sign in...';
             successDiv.style.display = 'block';
             changePwdForm.reset();
+            setTimeout(() => { window.location.href = '/dashboard/login'; }, 2500);
           } catch (error) {
             errorDiv.textContent = error.message || 'Failed to change password';
             errorDiv.style.display = 'block';
@@ -7229,6 +7231,11 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         // Load users list
         const users = await apiRequest('/users');
         const usersList = users.data || [];
+
+        // Who is looking: Reset MFA is hidden on your own row and, for admins, on owners' rows
+        // (the API refuses both).
+        let viewer = {};
+        try { viewer = (await apiRequest('/auth/me')).data || {}; } catch (e) { viewer = {}; }
         
         // Load domains for domain assignment
         const domains = await apiRequest('/domains');
@@ -7281,6 +7288,10 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
             html += '<td>' + lastLogin + '</td>';
             html += '<td>';
             html += '<button class="btn btn-sm btn-primary" data-action="edit-user" data-user-id="' + userIdEscaped + '" style="margin-right: 0.5rem;">Edit</button>';
+            const canResetMfa = user.mfa_enabled && user.id !== viewer.id && (user.role !== 'owner' || viewer.role === 'owner');
+            if (canResetMfa) {
+              html += '<button class="btn btn-sm btn-secondary" data-action="reset-user-mfa" data-user-id="' + userIdEscaped + '" style="margin-right: 0.5rem;">Reset MFA</button>';
+            }
             html += '<button class="btn btn-sm btn-secondary" data-action="delete-user" data-user-id="' + userIdEscaped + '">Delete</button>';
             html += '</td>';
             html += '</tr>';
@@ -7315,6 +7326,13 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
           const userId = btn.getAttribute('data-user-id');
           if (userId) {
             btn.addEventListener('click', () => deleteUser(userId));
+          }
+        });
+
+        document.querySelectorAll('[data-action="reset-user-mfa"]').forEach(btn => {
+          const userId = btn.getAttribute('data-user-id');
+          if (userId) {
+            btn.addEventListener('click', () => resetUserMfa(userId));
           }
         });
         
@@ -7652,6 +7670,19 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
       }
     }
     
+    async function resetUserMfa(userId) {
+      if (!confirm('Reset MFA for this user? They will sign in with just their password and should enrol MFA again.')) {
+        return;
+      }
+      try {
+        await apiRequest('/users/' + userId + '/mfa/reset', { method: 'POST' });
+        showToast('MFA reset for this user.', 'success');
+        await loadUserManagementSection();
+      } catch (error) {
+        showToast('Failed to reset MFA: ' + error.message, 'error');
+      }
+    }
+
     // Make functions globally available
     window.editUser = editUser;
     window.deleteUser = deleteUser;
@@ -7896,14 +7927,17 @@ export function dashboardHtml(csrfToken: string, nonce: string): string {
         return;
       }
 
-      // The API now requires a valid current MFA code (or account password) to disable MFA.
-      const code = prompt('Enter your current MFA code to disable MFA:');
-      if (!code) return;
+      // The API requires a valid current MFA code or the account password. The password is
+      // the way out when the authenticator no longer works (e.g. after SETUP_TOKEN changed).
+      const credential = prompt('Enter your current 6-digit MFA code, or your account password if your authenticator no longer works:');
+      if (!credential) return;
+      const trimmed = credential.trim();
+      const isTotp = trimmed.length === 6 && [...trimmed].every(ch => ch >= '0' && ch <= '9');
 
       try {
         await apiRequest('/auth/mfa/disable', {
           method: 'POST',
-          body: JSON.stringify({ mfa_code: code })
+          body: JSON.stringify(isTotp ? { mfa_code: trimmed } : { password: credential })
         });
         
         showToast('MFA disabled successfully', 'success');
