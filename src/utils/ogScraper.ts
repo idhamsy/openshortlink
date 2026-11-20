@@ -8,6 +8,7 @@
 // Fetches a destination URL and extracts its Open Graph / Twitter Card meta tags,
 // so the dashboard can pre-fill a link's social preview fields ("Fetch from URL").
 
+import { parseHTML, preview, type PreviewResult } from 'linkpeek';
 import { isValidUrl } from './validation';
 
 export interface ScrapedOgMeta {
@@ -21,24 +22,6 @@ export interface ScrapedOgMeta {
 const MAX_HTML_BYTES = 1_000_000; // only parse the first ~1MB of HTML
 const FETCH_TIMEOUT_MS = 8000;
 const MAX_REDIRECTS = 3;
-
-/**
- * Decode the handful of HTML entities that commonly appear in meta content.
- * We decode here so the value is stored raw; the render layer re-escapes via escapeHtml.
- */
-function decodeEntities(value: string): string {
-  // Single left-to-right pass: chaining sequential .replace() calls would let an
-  // earlier replacement's output be re-matched by a later one (e.g. "&amp;lt;" ->
-  // "&lt;" -> "<"). Matching each entity once avoids that double-unescape.
-  return value.replace(/&(?:amp|lt|gt|quot|#0*39|#x27);/gi, (match) => {
-    const e = match.toLowerCase();
-    if (e === '&amp;') return '&';
-    if (e === '&lt;') return '<';
-    if (e === '&gt;') return '>';
-    if (e === '&quot;') return '"';
-    return "'"; // &#39; / &#039; / &#x27;
-  });
-}
 
 /**
  * Reject URLs that point at private / loopback / link-local / cloud-metadata hosts.
@@ -156,137 +139,38 @@ export function isPubliclyFetchableUrl(url: string): boolean {
   return true;
 }
 
+function toOgMeta(page: PreviewResult): ScrapedOgMeta {
+  return {
+    og_title: page.title ?? undefined,
+    og_description: page.description ?? undefined,
+    og_image: page.image ?? undefined,
+    og_type: page.mediaType,
+    twitter_card: page.twitterCard ?? undefined,
+  };
+}
+
 /**
  * Parse Open Graph / Twitter Card meta tags out of an HTML string.
- * Pure function — handles either attribute order and single/double quotes.
+ * Relative image URLs are resolved against baseUrl.
  */
-export function parseOgTags(html: string): ScrapedOgMeta {
-  const result: ScrapedOgMeta = {};
-  const head = html.slice(0, MAX_HTML_BYTES);
-
-  const metaTagRegex = /<meta\b[^>]*>/gi;
-  const keyRegex = /(?:property|name)\s*=\s*["']([^"']+)["']/i;
-  const contentRegex = /content\s*=\s*["']([^"']*)["']/i;
-
-  const tags = head.match(metaTagRegex) || [];
-  for (const tag of tags) {
-    const keyMatch = tag.match(keyRegex);
-    const contentMatch = tag.match(contentRegex);
-    if (!keyMatch || !contentMatch) continue;
-
-    const key = keyMatch[1].trim().toLowerCase();
-    const content = decodeEntities(contentMatch[1].trim());
-    if (!content) continue;
-
-    switch (key) {
-      case 'og:title':
-        result.og_title = result.og_title ?? content;
-        break;
-      case 'og:description':
-        result.og_description = result.og_description ?? content;
-        break;
-      case 'og:image':
-      case 'og:image:url':
-      case 'og:image:secure_url':
-        result.og_image = result.og_image ?? content;
-        break;
-      case 'og:type':
-        result.og_type = result.og_type ?? content;
-        break;
-      case 'twitter:card':
-        result.twitter_card = result.twitter_card ?? content;
-        break;
-      // Twitter fallbacks for title/description/image when OG ones are absent.
-      case 'twitter:title':
-        result.og_title = result.og_title ?? content;
-        break;
-      case 'twitter:description':
-        result.og_description = result.og_description ?? content;
-        break;
-      case 'twitter:image':
-        result.og_image = result.og_image ?? content;
-        break;
-      default:
-        break;
-    }
-  }
-
-  return result;
+export function parseOgTags(html: string, baseUrl: string): ScrapedOgMeta {
+  return toOgMeta(parseHTML(html, baseUrl));
 }
 
 /**
  * Fetch a URL and return its OG/Twitter meta. Throws on guard failure, timeout,
- * non-HTML, or network error — the caller maps that to a 4xx/5xx response.
+ * or network error — the caller maps that to a 4xx/5xx response.
+ * linkpeek re-validates every redirect hop, caps the body, and detects the charset.
  */
 export async function fetchOgTags(url: string): Promise<ScrapedOgMeta> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  try {
-    // Follow redirects MANUALLY, re-validating every hop against the SSRF guard.
-    // `redirect: 'follow'` would let a public URL redirect the worker to a private/
-    // internal host, bypassing the initial isPubliclyFetchableUrl() check.
-    let currentUrl = url;
-    let response: Response | null = null;
-    for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-      if (!isPubliclyFetchableUrl(currentUrl)) {
-        throw new Error('URL is not publicly fetchable');
-      }
-      response = await fetch(currentUrl, {
-        method: 'GET',
-        redirect: 'manual',
-        signal: controller.signal,
-        headers: {
-          'User-Agent': 'OpenShortLink-OGFetcher/1.0',
-          Accept: 'text/html,application/xhtml+xml',
-        },
-      });
-      if (response.status >= 300 && response.status < 400) {
-        const location = response.headers.get('location');
-        if (!location) break; // redirect without a target -> treat as terminal
-        if (hop === MAX_REDIRECTS) {
-          throw new Error('Too many redirects');
-        }
-        // Resolve relative redirects; the next loop iteration re-checks the SSRF guard.
-        currentUrl = new URL(location, currentUrl).toString();
-        continue;
-      }
-      break; // not a redirect -> use this response
-    }
-
-    if (!response || !response.ok) {
-      throw new Error(`Destination returned ${response ? response.status : 'no response'}`);
-    }
-
-    const contentType = response.headers.get('content-type') || '';
-    if (!contentType.includes('text/html') && !contentType.includes('application/xhtml')) {
-      throw new Error('Destination is not an HTML page');
-    }
-
-    // Read at most MAX_HTML_BYTES so a huge or chunked page can't exhaust worker
-    // memory (content-length may be absent, so we cap the stream, not the header).
-    const reader = response.body?.getReader();
-    if (!reader) {
-      return {};
-    }
-    const decoder = new TextDecoder();
-    let html = '';
-    let received = 0;
-    try {
-      while (received < MAX_HTML_BYTES) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        received += value.byteLength;
-        html += decoder.decode(value, { stream: true });
-      }
-    } finally {
-      try {
-        await reader.cancel();
-      } catch {
-        // ignore – we already have what we need
-      }
-    }
-    return parseOgTags(html);
-  } finally {
-    clearTimeout(timeoutId);
+  const page = await preview(url, {
+    timeout: FETCH_TIMEOUT_MS,
+    maxBytes: MAX_HTML_BYTES,
+    maxRedirects: MAX_REDIRECTS,
+    userAgent: 'OpenShortLink-OGFetcher/1.0',
+  });
+  if (page.statusCode < 200 || page.statusCode >= 300) {
+    throw new Error(`Destination returned ${page.statusCode}`);
   }
+  return toOgMeta(page);
 }

@@ -8,6 +8,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { parseOgTags, isPubliclyFetchableUrl, fetchOgTags, parseIpv4Host, isPrivateIpv4 } from '../ogScraper';
 
+const BASE = 'https://example.com/blog/post';
+
 describe('parseOgTags', () => {
   it('extracts standard Open Graph tags', () => {
     const html = `
@@ -18,7 +20,7 @@ describe('parseOgTags', () => {
         <meta property="og:type" content="article">
         <meta name="twitter:card" content="summary_large_image">
       </head>`;
-    const og = parseOgTags(html);
+    const og = parseOgTags(html, BASE);
     expect(og.og_title).toBe('My Page');
     expect(og.og_description).toBe('A description');
     expect(og.og_image).toBe('https://cdn.example.com/i.png');
@@ -28,25 +30,40 @@ describe('parseOgTags', () => {
 
   it('handles reversed attribute order and single quotes', () => {
     const html = `<meta content='Reversed Title' property='og:title'>`;
-    expect(parseOgTags(html).og_title).toBe('Reversed Title');
+    expect(parseOgTags(html, BASE).og_title).toBe('Reversed Title');
   });
 
   it('decodes common HTML entities', () => {
     const html = `<meta property="og:title" content="Tom &amp; Jerry &lt;3 &quot;quotes&quot;">`;
-    expect(parseOgTags(html).og_title).toBe('Tom & Jerry <3 "quotes"');
+    expect(parseOgTags(html, BASE).og_title).toBe('Tom & Jerry <3 "quotes"');
+  });
+
+  it('keeps apostrophes inside double-quoted content', () => {
+    const html = `<meta property="og:title" content="Don't Panic">`;
+    expect(parseOgTags(html, BASE).og_title).toBe("Don't Panic");
+  });
+
+  it('decodes numeric and named entities', () => {
+    const html = `<meta property="og:title" content="Don&#8217;t stop &mdash; ever">`;
+    expect(parseOgTags(html, BASE).og_title).toBe('Don\u2019t stop \u2014 ever');
+  });
+
+  it('resolves a relative og:image against the page URL', () => {
+    const html = `<meta property="og:image" content="/img/cover.png">`;
+    expect(parseOgTags(html, BASE).og_image).toBe('https://example.com/img/cover.png');
   });
 
   it('does not double-unescape nested entities', () => {
     // "&amp;lt;" is the literal text "&lt;", not "<".
     const html = `<meta property="og:title" content="A &amp;lt; B">`;
-    expect(parseOgTags(html).og_title).toBe('A &lt; B');
+    expect(parseOgTags(html, BASE).og_title).toBe('A &lt; B');
   });
 
   it('falls back to twitter:* when og:* is absent', () => {
     const html = `
       <meta name="twitter:title" content="TW Title">
       <meta name="twitter:image" content="https://x.example.com/a.png">`;
-    const og = parseOgTags(html);
+    const og = parseOgTags(html, BASE);
     expect(og.og_title).toBe('TW Title');
     expect(og.og_image).toBe('https://x.example.com/a.png');
   });
@@ -55,15 +72,16 @@ describe('parseOgTags', () => {
     const html = `
       <meta property="og:title" content="OG Wins">
       <meta name="twitter:title" content="TW Loses">`;
-    expect(parseOgTags(html).og_title).toBe('OG Wins');
+    expect(parseOgTags(html, BASE).og_title).toBe('OG Wins');
   });
 
-  it('returns an empty object when there are no tags', () => {
-    expect(parseOgTags('<html><body>no meta</body></html>')).toEqual({});
+  it('returns no title, description or image when there are no tags', () => {
+    const og = parseOgTags('<html><body>no meta</body></html>', BASE);
+    expect([og.og_title, og.og_description, og.og_image]).toEqual([undefined, undefined, undefined]);
   });
 
   it('ignores meta tags with empty content', () => {
-    expect(parseOgTags(`<meta property="og:title" content="">`).og_title).toBeUndefined();
+    expect(parseOgTags(`<meta property="og:title" content="">`, BASE).og_title).toBeUndefined();
   });
 });
 
@@ -182,7 +200,7 @@ describe('fetchOgTags redirect handling (SSRF guard)', () => {
         ? redirectTo('http://169.254.169.254/latest/meta-data')
         : htmlPage('<meta property="og:title" content="SHOULD NOT LEAK">')
     ));
-    await expect(fetchOgTags('https://public.example.com/')).rejects.toThrow(/not publicly fetchable/i);
+    await expect(fetchOgTags('https://public.example.com/')).rejects.toThrow(/private\/internal/i);
   });
 
   it('follows a redirect to another public host and parses its tags', async () => {
@@ -193,6 +211,15 @@ describe('fetchOgTags redirect handling (SSRF guard)', () => {
     ));
     const og = await fetchOgTags('https://a.example.com/');
     expect(og.og_title).toBe('Hello');
+  });
+
+  it('decodes pages served in a legacy charset', async () => {
+    const bytes = new Uint8Array(Buffer.from('<meta property="og:title" content="Caf\u00e9 cr\u00e8me">', 'latin1'));
+    vi.stubGlobal('fetch', vi.fn(async () =>
+      new Response(bytes, { headers: { 'content-type': 'text/html; charset=windows-1252' } })
+    ));
+    const og = await fetchOgTags('https://cafe.example.com/');
+    expect(og.og_title).toBe('Caf\u00e9 cr\u00e8me');
   });
 
   it('stops after too many redirects', async () => {
