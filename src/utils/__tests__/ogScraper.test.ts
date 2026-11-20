@@ -53,6 +53,13 @@ describe('parseOgTags', () => {
     expect(parseOgTags(html, BASE).og_image).toBe('https://example.com/img/cover.png');
   });
 
+  it('trims a long <title> fallback to the save schema limits', () => {
+    const html = `<html><head><title>${'a'.repeat(300)}</title><meta name="description" content="${'b'.repeat(600)}"></head></html>`;
+    const og = parseOgTags(html, BASE);
+    expect(og.og_title).toHaveLength(255);
+    expect(og.og_description).toHaveLength(500);
+  });
+
   it('does not double-unescape nested entities', () => {
     // "&amp;lt;" is the literal text "&lt;", not "<".
     const html = `<meta property="og:title" content="A &amp;lt; B">`;

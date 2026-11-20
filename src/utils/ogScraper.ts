@@ -141,8 +141,9 @@ export function isPubliclyFetchableUrl(url: string): boolean {
 
 function toOgMeta(page: PreviewResult): ScrapedOgMeta {
   return {
-    og_title: page.title ?? undefined,
-    og_description: page.description ?? undefined,
+    // Fit the save schema (src/schemas/link.ts) so a long <title> doesn't block saving.
+    og_title: page.title?.slice(0, 255) ?? undefined,
+    og_description: page.description?.slice(0, 500) ?? undefined,
     og_image: page.image ?? undefined,
     og_type: page.mediaType,
     twitter_card: page.twitterCard ?? undefined,
